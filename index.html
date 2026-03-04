@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CarTracker PH Live + Geofence</title>
+    <title>CarTracker PH Live + Max Speed</title>
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -12,16 +12,17 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body, html, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #f0f0f0; }
-        .menu { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1000; background: white; padding: 15px; border-radius: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 220px; border: 2px solid #007AFF; transition: all 0.3s; }
+        .menu { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1000; background: white; padding: 15px; border-radius: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 280px; border: 2px solid #007AFF; transition: all 0.3s; }
         button { padding: 12px 20px; border-radius: 12px; border: none; background: #007AFF; color: white; font-weight: bold; width: 100%; cursor: pointer; font-size: 16px; }
-        .stats-row { display: flex; gap: 20px; align-items: center; margin: 5px 0; }
-        .speed-display { font-size: 32px; font-weight: bold; color: #007AFF; }
-        .battery-display { font-size: 18px; font-weight: bold; color: #444; }
-        .status { font-size: 13px; color: #444; text-align: center; font-weight: 500; }
+        .stats-row { display: flex; gap: 10px; align-items: center; margin: 5px 0; width: 100%; justify-content: space-around; }
+        .speed-display { font-size: 28px; font-weight: bold; color: #007AFF; text-align: center; line-height: 1; }
+        .speed-label { font-size: 10px; text-transform: uppercase; display: block; color: #666; }
+        .sub-stats { font-size: 13px; font-weight: bold; color: #444; display: flex; flex-direction: column; gap: 2px; }
+        .status { font-size: 12px; color: #666; text-align: center; font-weight: 500; border-top: 1px solid #eee; padding-top: 5px; width: 100%; }
         
         /* Alert Styles */
         .outside-fence { border: 3px solid #FF3B30 !important; background: #ffebeb !important; }
-        .outside-text, .low-battery { color: #FF3B30 !important; font-weight: bold; animation: blink 1s infinite; }
+        .outside-text, .low-battery { color: #FF3B30 !important; animation: blink 1s infinite; }
         @keyframes blink { 50% { opacity: 0; } }
     </style>
 </head>
@@ -30,8 +31,15 @@
     <div class="menu" id="mainMenu">
         <button onclick="toggleTracking()" id="btn">📡 Start PH Tracking</button>
         <div class="stats-row">
-            <div id="speed" class="speed-display">0 km/h</div>
-            <div id="battery" class="battery-display">🔋 --%</div>
+            <div class="speed-display">
+                <span id="speed">0</span>
+                <span class="speed-label">km/h</span>
+            </div>
+            <div class="sub-stats">
+                <span id="battery">🔋 --%</span>
+                <span id="distance">🏁 0.00 km</span>
+                <span id="maxSpeed" style="color: #FF9500;">🚀 Max: 0 km/h</span>
+            </div>
         </div>
         <div id="status" class="status">Waiting for GPS...</div>
     </div>
@@ -39,7 +47,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = { databaseURL: "https://cartracker-1df45-default-rtdb.firebaseio.com/" };
         const app = initializeApp(firebaseConfig);
@@ -49,53 +57,47 @@
         const fenceRadius = 1000; 
 
         const streetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' });
-        const satelliteMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
         const trafficLayer = L.tileLayer('https://mt1.google.com/vt?lyrs=h@159,traffic&x={x}&y={y}&z={z}', { attribution: '© Google Traffic' });
 
-        const map = L.map('map', {
-            center: fenceCenter,
-            zoom: 14,
-            layers: [streetMap, trafficLayer]
-        });
-
-        L.control.layers({ "Street": streetMap, "Satellite": satelliteMap }, { "🚦 Traffic": trafficLayer }).addTo(map);
+        const map = L.map('map', { center: fenceCenter, zoom: 14, layers: [streetMap, trafficLayer] });
+        L.control.layers({ "Street": streetMap }, { "🚦 Traffic": trafficLayer }).addTo(map);
         
-        const geofence = L.circle(fenceCenter, {
-            color: '#007AFF',
-            fillColor: '#007AFF',
-            fillOpacity: 0.1,
-            radius: fenceRadius
-        }).addTo(map);
-
+        const geofence = L.circle(fenceCenter, { color: '#007AFF', fillColor: '#007AFF', fillOpacity: 0.1, radius: fenceRadius }).addTo(map);
         let carMarker = L.marker(fenceCenter).addTo(map);
 
-        // MONITOR: Receive GPS + Battery + Geofence Check
+        let routePath = L.polyline([], {color: '#007AFF', weight: 5, opacity: 0.6}).addTo(map);
+
+        // Tracking Variables
+        let totalDistance = 0;
+        let lastLatLng = null;
+        let currentMaxSpeed = 0;
+
+        // MONITOR
         onValue(ref(db, 'cars/car1'), (snap) => {
             if(snap.exists()){
-                const {lat, lng, speed, battery} = snap.val();
+                const {lat, lng, speed, battery, dist, history, maxSpeed} = snap.val();
                 const carPos = L.latLng(lat, lng);
                 carMarker.setLatLng(carPos);
                 map.setView(carPos);
 
-                document.getElementById('speed').innerText = (speed || 0) + " km/h";
-                
-                // Battery UI + Alert Logic
-                const batteryLabel = document.getElementById('battery');
-                const batVal = battery || 0;
-                batteryLabel.innerText = (batVal <= 20 ? "🪫 " : "🔋 ") + batVal + "%";
-                
-                if (batVal <= 20) {
-                    batteryLabel.className = "battery-display low-battery";
-                } else {
-                    batteryLabel.className = "battery-display";
+                if (history) {
+                    const pathArray = Object.values(history).map(pt => [pt.lat, pt.lng]);
+                    routePath.setLatLngs(pathArray);
                 }
+
+                document.getElementById('speed').innerText = speed || 0;
+                document.getElementById('distance').innerText = "🏁 " + (dist || "0.00") + " km";
+                document.getElementById('maxSpeed').innerText = "🚀 Max: " + (maxSpeed || 0) + " km/h";
                 
-                // GEOFENCE LOGIC
-                const distance = map.distance(carPos, L.latLng(fenceCenter));
+                const batLabel = document.getElementById('battery');
+                batLabel.innerText = (battery <= 20 ? "🪫 " : "🔋 ") + (battery || "--") + "%";
+                batLabel.className = battery <= 20 ? "low-battery" : "";
+                
+                const distToCenter = map.distance(carPos, L.latLng(fenceCenter));
                 const statusLabel = document.getElementById('status');
                 const mainMenu = document.getElementById('mainMenu');
 
-                if (distance > fenceRadius) {
+                if (distToCenter > fenceRadius) {
                     statusLabel.innerText = "🚨 OUTSIDE GEOFENCE!";
                     statusLabel.className = "status outside-text";
                     mainMenu.className = "menu outside-fence";
@@ -108,21 +110,45 @@
             }
         });
 
-        // TRACKER: Send GPS + Battery to Firebase
+        // TRACKER
         let watchID = null;
         window.toggleTracking = async () => {
             const btn = document.getElementById('btn');
             if(watchID) {
                 navigator.geolocation.clearWatch(watchID);
                 watchID = null;
+                lastLatLng = null;
                 btn.innerText = "📡 Start PH Tracking";
                 btn.style.background = "#007AFF";
-                document.getElementById('status').innerText = "Tracking Stopped";
             } else {
+                totalDistance = 0;
+                currentMaxSpeed = 0;
+                routePath.setLatLngs([]);
+                btn.innerText = "🛑 Stop Tracking";
+                btn.style.background = "#FF3B30";
+
+                set(ref(db, 'cars/car1/history'), null);
+
                 watchID = navigator.geolocation.watchPosition(async pos => {
                     const lat = pos.coords.latitude;
                     const lng = pos.coords.longitude;
-                    let speedKMH = Math.round((pos.coords.speed || 0) * 3.6); 
+                    const currentLatLng = L.latLng(lat, lng);
+                    const speedKMH = Math.round((pos.coords.speed || 0) * 3.6);
+                    
+                    // Update Max Speed
+                    if (speedKMH > currentMaxSpeed) {
+                        currentMaxSpeed = speedKMH;
+                    }
+
+                    if (lastLatLng) {
+                        const d = map.distance(lastLatLng, currentLatLng);
+                        if (d > 5) {
+                            totalDistance += d;
+                            const historyRef = ref(db, `cars/car1/history/${Date.now()}`);
+                            set(historyRef, {lat, lng});
+                        }
+                    }
+                    lastLatLng = currentLatLng;
 
                     let batteryLevel = 0;
                     if (navigator.getBattery) {
@@ -130,17 +156,20 @@
                         batteryLevel = Math.round(bat.level * 100);
                     }
 
-                    set(ref(db, 'cars/car1'), { 
-                        lat: lat, 
-                        lng: lng,
-                        speed: speedKMH,
-                        battery: batteryLevel,
-                        lastUpdate: new Date().toISOString()
-                    });
-                }, err => alert("Enable GPS!"), { enableHighAccuracy: true });
+                    const distKM = (totalDistance / 1000).toFixed(2);
+                    
+                    const updates = {};
+                    updates['cars/car1/lat'] = lat;
+                    updates['cars/car1/lng'] = lng;
+                    updates['cars/car1/speed'] = speedKMH;
+                    updates['cars/car1/maxSpeed'] = currentMaxSpeed;
+                    updates['cars/car1/battery'] = batteryLevel;
+                    updates['cars/car1/dist'] = distKM;
+                    updates['cars/car1/lastUpdate'] = new Date().toISOString();
+                    
+                    update(ref(db), updates);
 
-                btn.innerText = "🛑 Stop Tracking";
-                btn.style.background = "#FF3B30";
+                }, err => alert("GPS Error"), { enableHighAccuracy: true });
             }
         };
     </script>
