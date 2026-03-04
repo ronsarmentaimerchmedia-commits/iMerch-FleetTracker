@@ -4,57 +4,79 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>iMerch FleetTrack</title>
+    
+    <link rel="icon" type="image/png" href="i-Merch Media Logo.png">
+    
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #f0f0f0; }
+        body, html, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #f0f0f0; overflow: hidden; }
         
-        /* LOGO HEADER STYLE */
-        .logo-header { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1001; background: rgba(255, 255, 255, 0.9); padding: 10px 20px; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px; border: 1px solid #007AFF; backdrop-filter: blur(5px); }
-        .logo-icon { width: 30px; height: 30px; background: #007AFF; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 18px; position: relative; }
-        .logo-pulse { position: absolute; width: 100%; height: 100%; background: #007AFF; border-radius: 8px; opacity: 0.5; animation: pulse-blue 2s infinite; }
-        .logo-text { font-family: 'Segoe UI', sans-serif; font-weight: 800; font-size: 18px; color: #333; letter-spacing: -0.5px; }
+        /* LOGO HEADER - Adjusted Transparency & Blur */
+        .logo-header { 
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%); 
+            z-index: 1001; background: rgba(255, 255, 255, 0.85); padding: 6px 18px; 
+            border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
+            display: flex; align-items: center; gap: 10px; border: 1px solid rgba(0, 122, 255, 0.3); 
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        }
+        
+        .header-logo-img { height: 28px; width: auto; object-fit: contain; }
+        .logo-text { font-family: 'Segoe UI', sans-serif; font-weight: 800; font-size: 16px; color: #333; letter-spacing: -0.5px; }
         .logo-text span { color: #007AFF; }
-        
-        @keyframes pulse-blue { 0% { transform: scale(1); opacity: 0.5; } 100% { transform: scale(1.6); opacity: 0; } }
 
-        /* MENU STYLE */
-        .menu { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1000; background: white; padding: 15px; border-radius: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 280px; border: 2px solid #007AFF; transition: all 0.3s; }
-        .driver-container { display: flex; align-items: center; gap: 12px; width: 100%; padding-bottom: 10px; border-bottom: 1px solid #eee; margin-bottom: 5px; position: relative; }
-        .profile-img-wrapper { position: relative; }
-        .profile-img { width: 52px; height: 52px; border-radius: 50%; border: 2px solid #007AFF; object-fit: cover; background: #eee; }
-        .status-dot { position: absolute; bottom: 2px; right: 2px; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; background: #8e8e93; }
+        /* MENU STYLE - Mobile Optimized */
+        .menu { 
+            position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); 
+            z-index: 1000; background: white; padding: 15px; border-radius: 24px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; flex-direction: column; 
+            align-items: center; gap: 5px; width: 90%; max-width: 320px; 
+            border: 1px solid #007AFF; transition: all 0.3s; 
+        }
+        
+        @media (max-width: 480px) {
+            .menu { bottom: 15px; padding: 12px; width: 92%; }
+            .logo-header { top: 10px; width: 80%; justify-content: center; }
+        }
+
+        .home-logo-container { width: 100%; display: flex; justify-content: center; padding-bottom: 8px; margin-bottom: 5px; border-bottom: 1px solid #f0f0f0; }
+        .home-logo-img { height: 35px; width: auto; opacity: 0.9; }
+
+        .driver-container { display: flex; align-items: center; gap: 10px; width: 100%; padding-bottom: 8px; border-bottom: 1px solid #f0f0f0; margin-bottom: 5px; }
+        .profile-img { width: 48px; height: 48px; border-radius: 50%; border: 2px solid #007AFF; object-fit: cover; }
+        
+        .status-dot { position: absolute; bottom: 2px; right: 2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; background: #8e8e93; }
         .status-moving { background: #34C759; box-shadow: 0 0 8px #34C759; }
         .status-parked { background: #FF3B30; }
+        
         .vehicle-switcher { display: flex; width: 100%; gap: 5px; margin-bottom: 5px; }
-        .v-btn { flex: 1; padding: 8px; font-size: 12px; border-radius: 8px; border: 1px solid #007AFF; background: white; color: #007AFF; cursor: pointer; transition: 0.3s; font-weight: bold; }
+        .v-btn { flex: 1; padding: 8px; font-size: 11px; border-radius: 10px; border: 1px solid #007AFF; background: white; color: #007AFF; font-weight: bold; }
         .v-btn.active { background: #007AFF; color: white; }
-        .history-controls { width: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 2px dashed #eee; }
-        .history-row { display: flex; gap: 5px; width: 100%; }
-        input[type="date"] { padding: 8px; border-radius: 8px; border: 1px solid #ddd; flex-grow: 1; font-family: inherit; }
-        button { padding: 12px 20px; border-radius: 12px; border: none; background: #007AFF; color: white; font-weight: bold; width: 100%; cursor: pointer; transition: 0.2s; }
-        .btn-history { background: #5856D6; padding: 8px; font-size: 14px; }
-        .btn-export { background: #34C759; display: none; margin-top: 5px; }
-        #btn.tracking-on { background: #FF3B30; }
-        .stats-row { display: flex; gap: 10px; align-items: center; margin: 5px 0; width: 100%; justify-content: space-around; }
-        .speed-display { font-size: 28px; font-weight: bold; color: #007AFF; text-align: center; }
-        .status { font-size: 12px; color: #666; text-align: center; width: 100%; }
-        #lastSeen { font-size: 10px; color: #E64646; font-weight: bold; }
+        
+        button#btn { padding: 12px; border-radius: 14px; background: #007AFF; color: white; font-weight: 800; width: 100%; border: none; }
+        button#btn.tracking-on { background: #FF3B30; animation: pulse-red 2s infinite; }
+        
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 59, 48, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } }
+
+        .stats-row { display: flex; gap: 10px; align-items: center; margin-top: 5px; width: 100%; justify-content: space-around; background: #f8f9fa; border-radius: 12px; padding: 8px 0; }
+        .speed-display { font-size: 24px; font-weight: 900; color: #007AFF; line-height: 1; }
+        .status { font-size: 11px; color: #8e8e93; margin-top: 4px; }
     </style>
 </head>
 <body>
     <div class="logo-header">
-        <div class="logo-icon">
-            <div class="logo-pulse"></div>
-            i
-        </div>
-        <div class="logo-text">iMerch<span>Fleet</span></div>
+        <img src="i-Merch Media Logo.png" alt="iMerch Logo" class="header-logo-img">
+        <div class="logo-text">Fleet<span>Track</span></div>
     </div>
 
     <div id="map"></div>
     
     <div class="menu" id="mainMenu">
-        <select class="driver-selector" id="driverPicker" onchange="updateDriverProfile()" style="width:100%; padding:8px; border-radius:10px; margin-bottom:5px;">
+        <div class="home-logo-container">
+            <img src="i-Merch Media Logo.png" alt="iMerch Home" class="home-logo-img">
+        </div>
+
+        <select id="driverPicker" onchange="updateDriverProfile()" style="width:100%; padding:10px; border-radius:12px; border:1px solid #ddd; margin-bottom:8px; font-weight:600;">
             <option value="ron">Ron Sarmenta</option>
             <option value="mico">Mico Balmaceda</option>
             <option value="darwin">Darwin Pengson</option>
@@ -67,37 +89,28 @@
             <button class="v-btn" id="motoBtn" onclick="setVehicle('moto')">🏍️ Moto</button>
         </div>
 
-        <div class="driver-container" id="driverBox">
+        <div class="driver-container" style="position:relative;">
             <div class="profile-img-wrapper">
                 <img id="profilePic" src="Ron Sarmenta.jpg" class="profile-img" alt="Driver">
                 <div id="statusDot" class="status-dot"></div>
             </div>
-            <div style="display:flex; flex-direction:column; flex-grow:1;">
-                <span id="displayDriver" style="font-weight:bold;">Ron Sarmenta</span>
+            <div style="display:flex; flex-direction:column; flex-grow:1; margin-left:10px;">
+                <span id="displayDriver" style="font-weight:800; font-size:14px;">Ron Sarmenta</span>
                 <span id="displayUser" style="font-size:11px; color:#007AFF;">@ronsarmenta_imerch</span>
-                <span id="lastSeen">Waiting for signal...</span>
+                <span id="lastSeen" style="font-size:10px; color:#FF3B30;">Signal: Waiting...</span>
             </div>
         </div>
 
-        <button onclick="toggleTracking()" id="btn">📡 Start Fleet Tracking</button>
+        <button onclick="toggleTracking()" id="btn">📡 Start Tracking</button>
 
-        <div class="history-controls">
-            <div class="history-row">
-                <input type="date" id="historyDate">
-                <button onclick="loadHistory()" class="btn-history">📂 View Path</button>
-            </div>
-            <button onclick="exportToExcel()" id="exportBtn" class="btn-export">📊 Export to Excel</button>
-            <button onclick="backToLive()" id="liveBtn" style="display:none; background:#8E8E93;">🟢 Back to Live</button>
-        </div>
-        
         <div class="stats-row">
-            <div class="speed-display"><span id="speed">0</span><span style="font-size:10px; display:block; color:#666;">km/h</span></div>
-            <div style="font-size:13px; font-weight:bold;">
+            <div class="speed-display"><span id="speed">0</span><span style="font-size:10px; display:block; color:#666; font-weight:normal;">km/h</span></div>
+            <div style="font-size:12px; font-weight:700;">
                 <span id="battery">🔋 --%</span><br>
                 <span id="distance">🏁 0.00 km</span>
             </div>
         </div>
-        <div id="status" class="status">iMerch FleetTrack Ready</div>
+        <div id="status" class="status">System Online</div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -112,61 +125,56 @@
         const carIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/744/744465.png', iconSize: [40, 40], iconAnchor: [20, 20] });
         const motoIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/1986/1986937.png', iconSize: [40, 40], iconAnchor: [20, 20] });
 
-        const map = L.map('map').setView([14.5794, 121.0359], 14);
+        const map = L.map('map', { zoomControl: false }).setView([14.5794, 121.0359], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         
         let carMarker = L.marker([14.5794, 121.0359], {icon: carIcon}).addTo(map);
-        let routePath = L.polyline([], {color: '#007AFF', weight: 5}).addTo(map);
-
-        let liveListener = null;
-        let isHistoryMode = false;
         let isTracking = false;
         let watchID = null;
-        let lastLat = null;
-        let lastLng = null;
         let totalDistance = 0;
+        let lastLat = null; let lastLng = null;
 
-        function getDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+        // REAL-TIME BATTERY UPDATE LOGIC
+        async function syncBattery(driverKey) {
+            if (navigator.getBattery) {
+                const battery = await navigator.getBattery();
+                const updateBat = () => {
+                    const level = Math.round(battery.level * 100);
+                    if(isTracking) {
+                        update(ref(db, 'cars/car1'), { battery: level });
+                    }
+                };
+                battery.addEventListener('levelchange', updateBat);
+                battery.addEventListener('chargingchange', updateBat);
+                updateBat();
+            }
         }
 
         window.toggleTracking = async () => {
             const btn = document.getElementById('btn');
             const driverKey = document.getElementById('driverPicker').value;
+            
             if (!isTracking) {
-                if (navigator.geolocation) {
-                    isTracking = true;
-                    btn.innerText = "🛑 Stop Tracking";
-                    btn.classList.add('tracking-on');
-                    totalDistance = 0; lastLat = null; lastLng = null;
-                    watchID = navigator.geolocation.watchPosition(async (pos) => {
-                        const lat = pos.coords.latitude;
-                        const lng = pos.coords.longitude;
-                        const speed = Math.round((pos.coords.speed || 0) * 3.6);
-                        if (lastLat !== null && lastLng !== null) {
-                            const d = getDistance(lastLat, lastLng, lat, lng);
-                            if (d > 0.005) totalDistance += d;
-                        }
-                        lastLat = lat; lastLng = lng;
-                        let batteryLevel = "--";
-                        if (navigator.getBattery) {
-                            const battery = await navigator.getBattery();
-                            batteryLevel = Math.round(battery.level * 100);
-                        }
-                        update(ref(db, 'cars/car1'), {
-                            lat: lat, lng: lng, speed: speed, dist: totalDistance.toFixed(2),
-                            battery: batteryLevel, driver: driverKey, lastUpdated: new Date().getTime()
-                        });
-                    }, (err) => console.error(err), { enableHighAccuracy: true });
-                }
+                isTracking = true;
+                btn.innerText = "🛑 Stop Tracking";
+                btn.classList.add('tracking-on');
+                syncBattery(driverKey);
+                
+                watchID = navigator.geolocation.watchPosition(async (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    const speed = Math.round((pos.coords.speed || 0) * 3.6);
+                    
+                    update(ref(db, 'cars/car1'), {
+                        lat: lat, lng: lng, speed: speed,
+                        lastUpdated: new Date().getTime(), driver: driverKey
+                    });
+                    map.panTo([lat, lng]);
+                }, null, { enableHighAccuracy: true });
             } else {
                 isTracking = false;
                 navigator.geolocation.clearWatch(watchID);
-                btn.innerText = "📡 Start Fleet Tracking";
+                btn.innerText = "📡 Start Tracking";
                 btn.classList.remove('tracking-on');
             }
         };
@@ -174,9 +182,8 @@
         window.updateDriverProfile = () => {
             const picker = document.getElementById('driverPicker');
             const val = picker.value;
-            const name = picker.options[picker.selectedIndex].text;
-            document.getElementById('profilePic').src = val === 'ron' ? "Ron Sarmenta.jpg" : val + ".jpg";
-            document.getElementById('displayDriver').innerText = name;
+            document.getElementById('profilePic').src = val + ".jpg";
+            document.getElementById('displayDriver').innerText = picker.options[picker.selectedIndex].text;
             document.getElementById('displayUser').innerText = "@" + val + "_imerch";
         };
 
@@ -186,42 +193,15 @@
             carMarker.setIcon(type === 'moto' ? motoIcon : carIcon);
         };
 
-        window.loadHistory = async () => {
-            const date = document.getElementById('historyDate').value;
-            const driver = document.getElementById('driverPicker').value;
-            if(!date) return alert("Select date!");
-            isHistoryMode = true;
-            document.getElementById('liveBtn').style.display = "block";
-            document.getElementById('exportBtn').style.display = "block";
-            const snap = await get(ref(db, `archives/${driver}/${date}`));
-            if(snap.exists()) {
-                const points = Object.values(snap.val()).map(p => [p.lat, p.lng]);
-                routePath.setLatLngs(points);
-                carMarker.setLatLng(points[points.length - 1]);
-                map.fitBounds(routePath.getBounds());
-            }
-        };
-
-        window.backToLive = () => {
-            isHistoryMode = false;
-            document.getElementById('liveBtn').style.display = "none";
-            document.getElementById('exportBtn').style.display = "none";
-            startLiveUpdates();
-        };
-
         function startLiveUpdates() {
-            if(liveListener) liveListener();
-            liveListener = onValue(ref(db, 'cars/car1'), (snap) => {
-                if(snap.exists() && !isHistoryMode){
+            onValue(ref(db, 'cars/car1'), (snap) => {
+                if(snap.exists()){
                     const d = snap.val();
                     carMarker.setLatLng([d.lat, d.lng]);
-                    const speed = d.speed || 0;
-                    document.getElementById('speed').innerText = speed;
-                    document.getElementById('distance').innerText = "🏁 " + (d.dist || "0.00") + " km";
+                    document.getElementById('speed').innerText = d.speed || 0;
                     document.getElementById('battery').innerText = "🔋 " + (d.battery || "--") + "%";
-                    document.getElementById('lastSeen').innerText = "Last Seen: " + new Date().toLocaleTimeString('en-PH');
-                    const dot = document.getElementById('statusDot');
-                    dot.className = speed > 2 ? "status-dot status-moving" : "status-dot status-parked";
+                    document.getElementById('lastSeen').innerText = "Last Seen: " + new Date().toLocaleTimeString();
+                    document.getElementById('statusDot').className = (d.speed > 2) ? "status-dot status-moving" : "status-dot status-parked";
                 }
             });
         }
@@ -229,4 +209,3 @@
     </script>
 </body>
 </html>
-
