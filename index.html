@@ -52,16 +52,19 @@
         }
         .modal-content { background: var(--bg); padding: 20px; border-radius: 20px; width: 90%; max-width: 450px; display: flex; flex-direction: column; gap: 15px; color: var(--text); overflow-y: auto; max-height: 90vh; }
         select, input { background: var(--card-bg); color: var(--text); border: 1px solid #ddd; padding: 12px; border-radius: 12px; width: 100%; }
-        .profile-img { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #007AFF; object-fit: cover; }
+        .profile-img { width: 55px; height: 55px; border-radius: 50%; border: 2.5px solid #007AFF; object-fit: cover; background: #eee; }
         
-        .chart-container { background: var(--card-bg); border-radius: 15px; padding: 10px; margin: 10px 0; }
-        .stats-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; padding-top: 5px; border-top: 1px solid #eee; margin-top: 5px; }
+        .stats-row { display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; padding-top: 5px; border-top: 1px solid #eee; margin-top: 5px; }
+        .speed-val { color: #007AFF; font-size: 14px; }
+        
+        /* Flag Style */
+        .km-flag { background: #FF3B30; color: white; border-radius: 50%; padding: 2px 6px; font-size: 10px; font-weight: bold; border: 2px solid white; text-align: center; }
     </style>
 </head>
 <body class="light-mode">
     <div id="routeStatus">
-        <span id="routeInfo">Showing History</span><br>
-        <small onclick="clearRouteLayer()" style="text-decoration:underline; cursor:pointer;">Close & Clear Map</small>
+        <span id="routeInfo">Daily Summary</span><br>
+        <small onclick="clearRouteLayer()" style="text-decoration:underline; cursor:pointer;">Close & Reset View</small>
     </div>
 
     <div class="logo-header">
@@ -78,8 +81,6 @@
     
     <div class="menu">
         <select id="driverPicker" onchange="updateDriverProfile()">
-            <option value="auto">🚗 Company Auto</option>
-            <option value="motor">🏍️ Company Motorcycle</option>
             <option value="ron">Ron Sarmenta</option>
             <option value="mico">Mico Balmaceda</option>
             <option value="darwin">Darwin Pengson</option>
@@ -87,14 +88,14 @@
             <option value="vergel">Vergel Apurillo</option>
         </select>
 
-        <div style="display:flex; align-items:center; gap:10px;">
-            <img id="profilePic" src="auto.jpg" class="profile-img" onerror="this.src='https://cdn-icons-png.flaticon.com/512/6596/6596121.png'">
+        <div style="display:flex; align-items:center; gap:12px;">
+            <img id="profilePic" src="ron.jpg" class="profile-img" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3135/3135715.png'">
             <div style="flex-grow: 1;">
-                <b id="displayDriver">Company Auto</b><br>
-                <span id="lastSeen" style="font-size:11px;">Status: Standby</span>
+                <b id="displayDriver">Ron Sarmenta</b><br>
+                <span id="liveSpeed" class="speed-val">Speed: 0 km/h</span>
                 <div class="stats-row">
                     <span>Dist: <span id="statDist">0.00</span> km</span>
-                    <span>🔋: <span id="statBatt">--</span>%</span>
+                    <span>Batt: <span id="statBatt">--</span>%</span>
                 </div>
             </div>
         </div>
@@ -109,10 +110,8 @@
 
     <div id="routeModal">
         <div class="modal-content">
-            <h3>🗺️ Route History</h3>
+            <h3>🗺️ View Logged Route</h3>
             <select id="histDriver">
-                <option value="auto">Company Auto</option>
-                <option value="motor">Company Motorcycle</option>
                 <option value="ron">Ron Sarmenta</option>
                 <option value="mico">Mico Balmaceda</option>
                 <option value="darwin">Darwin Pengson</option>
@@ -120,32 +119,13 @@
                 <option value="vergel">Vergel Apurillo</option>
             </select>
             <input type="date" id="histDate">
-            <button class="export-btn" onclick="loadRouteHistory()">Load Daily Route</button>
+            <button class="export-btn" onclick="loadRouteHistory()">Analyze Route</button>
             <button onclick="closeRouteModal()" style="background:none; border:none; color:gray;">Cancel</button>
         </div>
     </div>
 
-    <div id="chartModal">
-        <div class="modal-content">
-            <h3 style="margin:0;">📊 Fleet Dashboard</h3>
-            <div class="chart-container">
-                <canvas id="fuelChart"></canvas>
-            </div>
-            <button class="export-btn" onclick="exportDataToExcel()">📂 Export All Logs (Excel)</button>
-            <button class="export-btn" style="background:#FF3B30;" onclick="adminClearLogs()">🗑️ Clear All Logs (Admin)</button>
-            <button class="export-btn" style="background:#8E8E93;" onclick="closeChartModal()">Close</button>
-        </div>
-    </div>
-
-    <div id="fuelModal">
-        <div class="modal-content">
-            <h3>⛽ Fuel Entry</h3>
-            <input type="number" id="fuelAmount" placeholder="Amount (PHP)">
-            <input type="number" id="fuelLiters" placeholder="Liters (L)">
-            <button class="export-btn" onclick="submitFuel()">Save Log</button>
-            <button onclick="closeFuelModal()">Cancel</button>
-        </div>
-    </div>
+    <div id="chartModal"><div class="modal-content"><canvas id="fuelChart"></canvas><button class="export-btn" onclick="closeChartModal()">Close</button></div></div>
+    <div id="fuelModal"><div class="modal-content"><h3>⛽ Fuel Entry</h3><input type="number" id="fuelAmount" placeholder="PHP"><input type="number" id="fuelLiters" placeholder="Liters"><button class="export-btn" onclick="submitFuel()">Save</button><button onclick="closeFuelModal()">Cancel</button></div></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module">
@@ -160,7 +140,7 @@
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         
         let historyLayer = null;
-        let fuelChartInstance = null;
+        let markersGroup = L.layerGroup().addTo(map);
         let wakeLock = null;
         document.getElementById('histDate').value = new Date().toISOString().split('T')[0];
 
@@ -174,7 +154,7 @@
                 const a = Math.sin(dLat/2)**2 + Math.cos(p1[0]*Math.PI/180) * Math.cos(p2[0]*Math.PI/180) * Math.sin(dLon/2)**2;
                 total += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
             }
-            return total.toFixed(2);
+            return total;
         }
 
         // --- TRACKING ---
@@ -190,22 +170,24 @@
                 isTracking = true;
                 btn.innerText = "🛑 Stop Tracking";
                 btn.style.background = "#FF3B30";
-                alert(`Tracking started for ${driver.toUpperCase()}. Keep GPS on.`);
 
                 watchID = navigator.geolocation.watchPosition(async pos => {
                     const lat = pos.coords.latitude, lng = pos.coords.longitude;
-                    let currentBatt = 0;
-                    try { const b = await navigator.getBattery(); currentBatt = Math.round(b.level * 100); } catch(e){}
+                    const speed = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0; // m/s to km/h
+                    let batt = 0;
+                    try { const b = await navigator.getBattery(); batt = Math.round(b.level * 100); } catch(e){}
                     
-                    update(ref(db, `cars/${driver}`), { lat, lng, batt: currentBatt, lastUpdated: Date.now() });
-                    push(ref(db, `history/${driver}/${today}`), { lat, lng, time: Date.now(), batt: currentBatt });
-                }, null, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+                    update(ref(db, `cars/${driver}`), { lat, lng, speed, batt, lastUpdated: Date.now() });
+                    push(ref(db, `history/${driver}/${today}`), { lat, lng, speed, time: Date.now(), batt });
+                    
+                    document.getElementById('liveSpeed').innerText = `Speed: ${speed} km/h`;
+                }, null, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
 
-                if ('wakeLock' in navigator) { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
+                if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
             } else {
                 isTracking = false;
                 navigator.geolocation.clearWatch(watchID);
-                if (wakeLock) { wakeLock.release(); wakeLock = null; }
+                if (wakeLock) wakeLock.release();
                 btn.innerText = "📡 Start Tracking";
                 btn.style.background = "#007AFF";
             }
@@ -215,8 +197,7 @@
         window.updateDriverProfile = () => {
             const p = document.getElementById('driverPicker');
             const driver = p.value;
-            const img = document.getElementById('profilePic');
-            img.src = driver + ".jpg";
+            document.getElementById('profilePic').src = driver + ".jpg";
             document.getElementById('displayDriver').innerText = p.options[p.selectedIndex].text;
             
             const today = new Date().toISOString().split('T')[0];
@@ -224,53 +205,56 @@
                 if(snapshot.exists()){
                     const points = Object.values(snapshot.val()).sort((a,b) => a.time - b.time);
                     const coords = points.map(p => [p.lat, p.lng]);
-                    document.getElementById('statDist').innerText = calculateDistance(coords);
+                    document.getElementById('statDist').innerText = calculateDistance(coords).toFixed(2);
                     document.getElementById('statBatt').innerText = points[points.length-1].batt || "--";
-                } else {
-                    document.getElementById('statDist').innerText = "0.00";
-                    document.getElementById('statBatt').innerText = "--";
                 }
             });
         };
 
-        // --- HISTORY ---
+        // --- HISTORY WITH KM FLAGS ---
         window.loadRouteHistory = async () => {
             const driver = document.getElementById('histDriver').value;
             const date = document.getElementById('histDate').value;
             const snapshot = await get(ref(db, `history/${driver}/${date}`));
-            if(!snapshot.exists()) return alert("No history for this date.");
+            if(!snapshot.exists()) return alert("No logs found.");
             
             const points = Object.values(snapshot.val()).sort((a,b) => a.time - b.time);
             const coords = points.map(p => [p.lat, p.lng]);
             
             if(historyLayer) map.removeLayer(historyLayer);
-            historyLayer = L.polyline(coords, { color: '#FF9500', weight: 5, opacity: 0.8 }).addTo(map);
-            map.fitBounds(historyLayer.getBounds());
+            markersGroup.clearLayers();
+
+            historyLayer = L.polyline(coords, { color: '#007AFF', weight: 4 }).addTo(map);
             
+            // Add Flags per KM
+            let runningDist = 0;
+            let lastFlagKm = 0;
+            for (let i = 1; i < points.length; i++) {
+                runningDist += calculateDistance([[points[i-1].lat, points[i-1].lng], [points[i].lat, points[i].lng]]);
+                if (Math.floor(runningDist) > lastFlagKm) {
+                    lastFlagKm = Math.floor(runningDist);
+                    L.marker([points[i].lat, points[i].lng], {
+                        icon: L.divIcon({ className: 'km-flag', html: lastFlagKm })
+                    }).addTo(markersGroup);
+                }
+            }
+
+            map.fitBounds(historyLayer.getBounds());
             document.getElementById('routeStatus').style.display = 'block';
             closeRouteModal();
         };
 
-        // UI Helpers
-        window.openRouteModal = () => document.getElementById('routeModal').style.display = 'flex';
-        window.closeRouteModal = () => document.getElementById('routeModal').style.display = 'none';
-        window.openFuelModal = () => document.getElementById('fuelModal').style.display = 'flex';
-        window.closeFuelModal = () => document.getElementById('fuelModal').style.display = 'none';
-        window.openChartModal = () => { document.getElementById('chartModal').style.display = 'flex'; window.loadDashboard(); };
-        window.closeChartModal = () => document.getElementById('chartModal').style.display = 'none';
-        window.toggleTheme = () => document.body.classList.toggle('dark-mode');
-        window.clearRouteLayer = () => { if(historyLayer) map.removeLayer(historyLayer); document.getElementById('routeStatus').style.display = 'none'; };
-
-        // Database Admin
-        window.adminClearLogs = async () => {
-            if (prompt("Admin Password:") === "admin123") {
-                await remove(ref(db, 'fuelLogs'));
-                await remove(ref(db, 'history'));
-                location.reload();
-            }
+        window.clearRouteLayer = () => { 
+            if(historyLayer) map.removeLayer(historyLayer); 
+            markersGroup.clearLayers();
+            document.getElementById('routeStatus').style.display = 'none'; 
         };
 
-        window.updateDriverProfile(); // Init
+        window.updateDriverProfile();
+        // Initialize simple modal openers
+        window.openRouteModal = () => document.getElementById('routeModal').style.display = 'flex';
+        window.closeRouteModal = () => document.getElementById('routeModal').style.display = 'none';
+        window.toggleTheme = () => document.body.classList.toggle('dark-mode');
     </script>
 </body>
 </html>
