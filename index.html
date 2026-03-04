@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -38,7 +37,7 @@
         .speed-unit { font-size: 12px; color: #007AFF; font-weight: bold; }
         
         .other-stats { flex: 1; padding-left: 15px; display: flex; flex-direction: column; gap: 5px; }
-        .stat-item { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--text); }
+        .stat-item { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text); }
 
         .section-label { font-size: 11px; font-weight: 800; color: var(--secondary-text); text-transform: uppercase; letter-spacing: 1px; margin: 10px 0 5px 5px; }
 
@@ -109,6 +108,7 @@
             <div class="other-stats">
                 <div class="stat-item">🔋 <span id="statBatt">--</span>%</div>
                 <div class="stat-item">🏁 <span id="statDist">0.00</span> km</div>
+                <div class="stat-item">⛽ <span id="statEff">0.0</span> km/L</div>
             </div>
         </div>
 
@@ -161,7 +161,6 @@
         let fuelChartInstance = null;
         let followMe = false;
 
-        // Stats Variables
         let totalDistance = 0;
         let lastPosition = null;
         let deviceBattery = "--";
@@ -169,7 +168,6 @@
         const carIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/741/741407.png', iconSize: [40, 40], iconAnchor: [20, 20] });
         const bikeIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/2965/2965319.png', iconSize: [40, 40], iconAnchor: [20, 20] });
 
-        // --- Follow Me Logic ---
         window.toggleFollowMe = () => {
             followMe = !followMe;
             const fBtn = document.getElementById('followBtn');
@@ -177,7 +175,6 @@
             if(followMe && lastPosition) map.panTo([lastPosition.lat, lastPosition.lng]);
         };
 
-        // --- Battery Logic ---
         async function updateBatteryDisplay() {
             if ('getBattery' in navigator) {
                 const battery = await navigator.getBattery();
@@ -218,19 +215,34 @@
             update(ref(db, `cars/${driver}`), { type: type });
         };
 
+        // --- FUEL KM/L SCRIPT ADDED HERE ---
         window.submitFuel = async () => {
             const amount = document.getElementById('fuelAmount').value;
-            const liters = document.getElementById('fuelLiters').value;
+            const liters = parseFloat(document.getElementById('fuelLiters').value);
             const driver = document.getElementById('driverPicker').value;
+            const currentDist = parseFloat(document.getElementById('statDist').innerText);
+
             if(!amount || !liters) return alert("Fill all fields");
+
+            // Calculate Efficiency (km per 1 liter)
+            let efficiency = (currentDist > 0 && liters > 0) ? (currentDist / liters).toFixed(2) : 0;
+            document.getElementById('statEff').innerText = efficiency;
             
             await push(ref(db, `fuelLogs/${driver}`), {
                 amount: parseFloat(amount),
-                liters: parseFloat(liters),
+                liters: liters,
+                efficiency: efficiency, // Logged as km/L
+                distanceAtLog: currentDist,
                 date: new Date().toLocaleDateString(),
                 timestamp: Date.now()
             });
-            alert("Fuel Logged!");
+
+            // Reset local trip distance after fueling
+            totalDistance = 0;
+            document.getElementById('statDist').innerText = "0.00";
+            update(ref(db, `cars/${driver}`), { distance: "0.00", lastEfficiency: efficiency });
+
+            alert(`Fuel Logged! Efficiency: ${efficiency} km/L. Trip distance reset.`);
             closeFuelModal();
         };
 
@@ -242,7 +254,13 @@
             for(let driver in data) {
                 for(let logId in data[driver]) {
                     const log = data[driver][logId];
-                    exportData.push({ Driver: driver.toUpperCase(), Date: log.date, Amount_PHP: log.amount, Liters: log.liters });
+                    exportData.push({ 
+                        Driver: driver.toUpperCase(), 
+                        Date: log.date, 
+                        Amount_PHP: log.amount, 
+                        Liters: log.liters,
+                        Efficiency_kmL: log.efficiency || "N/A"
+                    });
                 }
             }
             const ws = XLSX.utils.json_to_sheet(exportData);
@@ -294,26 +312,24 @@
             }
         };
 
-        // --- Database Sync & Last Seen ---
         onValue(ref(db, 'cars'), (snapshot) => {
             const data = snapshot.val();
             if(!data) return;
             const currentSelected = document.getElementById('driverPicker').value;
             
             for(let driver in data) {
-                const { lat, lng, type, lastUpdated } = data[driver];
+                const { lat, lng, type, lastUpdated, lastEfficiency } = data[driver];
                 const icon = (type === 'bike') ? bikeIcon : carIcon;
                 
-                // Update marker
                 if(!vehicleMarkers[driver]) {
                     vehicleMarkers[driver] = L.marker([lat, lng], { icon: icon }).addTo(map).bindPopup(driver.toUpperCase());
                 } else {
                     vehicleMarkers[driver].setLatLng([lat, lng]).setIcon(icon);
                 }
 
-                // Update UI for the selected driver
                 if(driver === currentSelected) {
                     document.getElementById('lastUpdateTime').innerText = lastUpdated || "--:--:--";
+                    if(lastEfficiency) document.getElementById('statEff').innerText = lastEfficiency;
                 }
             }
         });
@@ -324,12 +340,12 @@
             document.getElementById('profilePic').src = (driver === "ron") ? "Ron Sarmenta.jpg" : driver + ".jpg";
             document.getElementById('displayDriver').innerText = picker.options[picker.selectedIndex].text;
             
-            // Sync current state from DB for selected driver
             const snapshot = await get(ref(db, `cars/${driver}`));
             const data = snapshot.val();
             if(data) {
                 document.getElementById('lastUpdateTime').innerText = data.lastUpdated || "--:--:--";
                 document.getElementById('statDist').innerText = data.distance || "0.00";
+                document.getElementById('statEff').innerText = data.lastEfficiency || "0.0";
                 if(data.lat && data.lng) map.setView([data.lat, data.lng], 15);
             }
             
