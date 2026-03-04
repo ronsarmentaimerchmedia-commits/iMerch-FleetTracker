@@ -138,14 +138,29 @@
         </div>
     </div>
 
-    <div id="routeModal"><div class="modal-content"><h3>🗺️ View History</h3><select id="histDriver"><option value="ron">Ron Sarmenta</option></select><input type="date" id="histDate"><button class="main-btn" onclick="loadRouteHistory()">Analyze Route</button><button onclick="closeRouteModal()" style="border:none; background:none; margin-top:10px; width:100%;">Cancel</button></div></div>
+    <div id="routeModal">
+        <div class="modal-content">
+            <h3>🗺️ View History</h3>
+            <select id="histDriver">
+                <option value="ron">Ron Sarmenta</option>
+                <option value="mico">Mico Balmaceda</option>
+                <option value="darwin">Darwin Pengson</option>
+                <option value="eljhay">Eljhay Ramos</option>
+                <option value="vergel">Vergel Archer</option>
+            </select>
+            <input type="date" id="histDate">
+            <button class="main-btn" onclick="loadRouteHistory()">Analyze Route</button>
+            <button class="main-btn" onclick="clearHistoryFromMap()" style="background:gray; margin-top:5px;">Clear Map</button>
+            <button onclick="closeRouteModal()" style="border:none; background:none; margin-top:10px; width:100%;">Cancel</button>
+        </div>
+    </div>
     
     <div id="fuelModal"><div class="modal-content"><h3>⛽ Fuel Entry</h3><input type="number" id="fuelAmount" placeholder="PHP Amount"><input type="number" id="fuelLiters" placeholder="Liters"><button class="main-btn" onclick="submitFuel()">Save Log</button><button onclick="closeFuelModal()" style="border:none; background:none; margin-top:10px; width:100%;">Cancel</button></div></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, update, push, get, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, update, push, get, onValue, remove, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = { databaseURL: "https://cartracker-1df45-default-rtdb.firebaseio.com/" };
         const app = initializeApp(firebaseConfig);
@@ -160,6 +175,7 @@
         let selectedType = 'car';
         let fuelChartInstance = null;
         let followMe = false;
+        let routePolyline = null; // Store the history line
 
         let totalDistance = 0;
         let lastPosition = null;
@@ -215,7 +231,6 @@
             update(ref(db, `cars/${driver}`), { type: type });
         };
 
-        // --- FUEL KM/L SCRIPT ADDED HERE ---
         window.submitFuel = async () => {
             const amount = document.getElementById('fuelAmount').value;
             const liters = parseFloat(document.getElementById('fuelLiters').value);
@@ -224,91 +239,56 @@
 
             if(!amount || !liters) return alert("Fill all fields");
 
-            // Calculate Efficiency (km per 1 liter)
             let efficiency = (currentDist > 0 && liters > 0) ? (currentDist / liters).toFixed(2) : 0;
             document.getElementById('statEff').innerText = efficiency;
             
             await push(ref(db, `fuelLogs/${driver}`), {
                 amount: parseFloat(amount),
                 liters: liters,
-                efficiency: efficiency, // Logged as km/L
+                efficiency: efficiency,
                 distanceAtLog: currentDist,
                 date: new Date().toLocaleDateString(),
                 timestamp: Date.now()
             });
 
-            // Reset local trip distance after fueling
             totalDistance = 0;
             document.getElementById('statDist').innerText = "0.00";
             update(ref(db, `cars/${driver}`), { distance: "0.00", lastEfficiency: efficiency });
 
-            alert(`Fuel Logged! Efficiency: ${efficiency} km/L. Trip distance reset.`);
+            alert(`Fuel Logged! Efficiency: ${efficiency} km/L.`);
             closeFuelModal();
         };
 
-        window.exportFuelCSV = async () => {
-            const snapshot = await get(ref(db, 'fuelLogs'));
+        // --- NEW: ANALYZE ROUTE HISTORY LOGIC ---
+        window.loadRouteHistory = async () => {
+            const driver = document.getElementById('histDriver').value;
+            const date = document.getElementById('histDate').value; // format YYYY-MM-DD
+            if(!date) return alert("Please select a date");
+
+            const formattedDate = date.replace(/-/g, ""); // Clean date for FB key
+            const historyRef = ref(db, `history/${driver}/${formattedDate}`);
+            
+            const snapshot = await get(historyRef);
             const data = snapshot.val();
-            if(!data) return alert("No data to export");
-            let exportData = [];
-            for(let driver in data) {
-                for(let logId in data[driver]) {
-                    const log = data[driver][logId];
-                    exportData.push({ 
-                        Driver: driver.toUpperCase(), 
-                        Date: log.date, 
-                        Amount_PHP: log.amount, 
-                        Liters: log.liters,
-                        Efficiency_kmL: log.efficiency || "N/A"
-                    });
-                }
-            }
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Fuel Logs");
-            XLSX.writeFile(wb, `Fleet_Fuel_Report_${new Date().toLocaleDateString()}.csv`);
+
+            if(!data) return alert("No history found for this date.");
+
+            const path = Object.values(data).map(point => [point.lat, point.lng]);
+            
+            if(routePolyline) map.removeLayer(routePolyline);
+            
+            routePolyline = L.polyline(path, { color: '#007AFF', weight: 5, opacity: 0.7 }).addTo(map);
+            map.fitBounds(routePolyline.getBounds());
+            
+            alert(`Found ${path.length} movement points. Route displayed.`);
+            closeRouteModal();
         };
 
-        window.updateChart = async () => {
-            const snapshot = await get(ref(db, 'fuelLogs'));
-            const data = snapshot.val();
-            const labels = [];
-            const amounts = [];
-            if(data) {
-                for(let driver in data) {
-                    labels.push(driver.toUpperCase());
-                    let total = 0;
-                    for(let log in data[driver]) total += data[driver][log].amount;
-                    amounts.push(total);
-                }
-            }
-            const ctx = document.getElementById('fuelChart').getContext('2d');
-            if(fuelChartInstance) fuelChartInstance.destroy();
-            fuelChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{ label: 'Total Spending (PHP)', data: amounts, backgroundColor: '#007AFF' }]
-                },
-                options: { responsive: true, maintainAspectRatio: true }
-            });
-            document.getElementById('chartModal').style.display = 'flex';
-        };
-
-        window.checkAdminPass = () => { 
-            if (prompt("Admin Password:") === "1234") window.updateChart(); 
-            else alert("Incorrect Password"); 
-        };
-
-        window.adminClearLogs = async () => {
-            if(prompt("Enter Password to Clear Logs:") === "1234") {
-                if(confirm("Are you sure? This cannot be undone.")) {
-                    await remove(ref(db, 'fuelLogs'));
-                    alert("Logs cleared.");
-                    window.updateChart();
-                }
-            } else {
-                alert("Incorrect Password.");
+        window.clearHistoryFromMap = () => {
+            if(routePolyline) {
+                map.removeLayer(routePolyline);
+                routePolyline = null;
+                alert("History cleared from map.");
             }
         };
 
@@ -348,7 +328,6 @@
                 document.getElementById('statEff').innerText = data.lastEfficiency || "0.0";
                 if(data.lat && data.lng) map.setView([data.lat, data.lng], 15);
             }
-            
             totalDistance = 0;
             lastPosition = null;
         };
@@ -364,24 +343,35 @@
                     const lat = pos.coords.latitude; 
                     const lng = pos.coords.longitude;
                     const speed = Math.round((pos.coords.speed || 0) * 3.6);
-                    const now = new Date().toLocaleTimeString();
-                    
+                    const now = new Date();
+                    const timeStr = now.toLocaleTimeString();
+                    const dateKey = now.toISOString().split('T')[0].replace(/-/g, "");
+
                     if (lastPosition) {
                         const dist = calculateDistance(lastPosition.lat, lastPosition.lng, lat, lng);
-                        if (dist > 0.005) totalDistance += dist;
+                        // Significant move (over 10 meters) triggers distance update and history log
+                        if (dist > 0.01) {
+                            totalDistance += dist;
+                            // Log history to Firebase for "Analyze Route" feature
+                            push(ref(db, `history/${driver}/${dateKey}`), {
+                                lat: lat,
+                                lng: lng,
+                                timestamp: Date.now()
+                            });
+                        }
                     }
                     lastPosition = { lat, lng };
 
                     document.getElementById('liveSpeed').innerText = speed;
                     document.getElementById('statDist').innerText = totalDistance.toFixed(2);
-                    document.getElementById('lastUpdateTime').innerText = now;
+                    document.getElementById('lastUpdateTime').innerText = timeStr;
                     
                     update(ref(db, `cars/${driver}`), { 
                         lat, lng, speed, 
                         distance: totalDistance.toFixed(2),
                         battery: deviceBattery,
                         type: selectedType, 
-                        lastUpdated: now 
+                        lastUpdated: timeStr 
                     });
 
                     if(followMe) map.panTo([lat, lng]);
