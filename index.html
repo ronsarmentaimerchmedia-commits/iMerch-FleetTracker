@@ -56,13 +56,12 @@
         
         .stats-row { display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; padding-top: 5px; border-top: 1px solid #eee; margin-top: 5px; }
         .speed-val { color: #007AFF; font-size: 14px; }
-        .km-flag { background: #FF3B30; color: white; border-radius: 50%; padding: 2px 6px; font-size: 10px; font-weight: bold; border: 2px solid white; text-align: center; }
     </style>
 </head>
 <body class="light-mode">
-    <div id="routeStatus">
+    <div id="routeStatus" onclick="clearFence()">
         <span id="routeInfo">Daily Summary</span><br>
-        <small onclick="clearRouteLayer()" style="text-decoration:underline; cursor:pointer;">Close & Reset View</small>
+        <small style="text-decoration:underline; cursor:pointer;">Tap to Clear Fence</small>
     </div>
 
     <div class="logo-header">
@@ -144,7 +143,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, update, push, get, remove, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, update, push, get, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = { databaseURL: "https://cartracker-1df45-default-rtdb.firebaseio.com/" };
         const app = initializeApp(firebaseConfig);
@@ -153,13 +152,12 @@
         const map = L.map('map', { zoomControl: false }).setView([14.5794, 121.0359], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         
-        let historyLayer = null;
-        let markersGroup = L.layerGroup().addTo(map);
         let vehicleMarkers = {};
         let wakeLock = null;
         let fuelChartInstance = null;
+        let geoFence = null; // Store the circle object
+        let fenceRadius = 500; // meters
 
-        // --- CUSTOM ICONS ---
         const carIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/741/741407.png', iconSize: [45, 45], iconAnchor: [22, 22] });
         const bikeIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/2965/2965319.png', iconSize: [45, 45], iconAnchor: [22, 22] });
 
@@ -168,7 +166,30 @@
             return cars.includes(driver.toLowerCase()) ? carIcon : bikeIcon;
         }
 
-        // --- TRACKING & AUTO-CENTER ---
+        // --- GEOfencing: Set Fence on Map Context Menu (Long Press) ---
+        map.on('contextmenu', (e) => {
+            if (geoFence) map.removeLayer(geoFence);
+            geoFence = L.circle(e.latlng, {
+                radius: fenceRadius,
+                color: '#007AFF',
+                fillColor: '#007AFF',
+                fillOpacity: 0.1
+            }).addTo(map);
+            
+            document.getElementById('routeStatus').style.display = 'block';
+            document.getElementById('routeInfo').innerText = "Geo-Fence Set (500m)";
+            document.getElementById('routeStatus').style.background = "#007AFF";
+        });
+
+        window.clearFence = () => {
+            if (geoFence) {
+                map.removeLayer(geoFence);
+                geoFence = null;
+                document.getElementById('routeStatus').style.display = 'none';
+            }
+        };
+
+        // --- UPDATED TRACKING LOGIC ---
         window.toggleTracking = async () => {
             const btn = document.getElementById('btn');
             const driver = document.getElementById('driverPicker').value;
@@ -180,19 +201,35 @@
                 btn.style.background = "#FF3B30";
 
                 window.watchID = navigator.geolocation.watchPosition(async pos => {
-                    const lat = pos.coords.latitude, lng = pos.coords.longitude;
-                    const speed = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0;
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    let speedMS = pos.coords.speed || 0; 
+                    let speedKMH = Math.round(speedMS * 3.6); 
+
+                    // Check Geo-Fence
+                    if (geoFence) {
+                        const dist = map.distance([lat, lng], geoFence.getLatLng());
+                        if (dist > fenceRadius) {
+                            document.getElementById('routeStatus').style.background = "#FF3B30";
+                            document.getElementById('routeInfo').innerText = "⚠️ OUT OF BOUNDS!";
+                            // Optional: Vibration or browser alert
+                            if (navigator.vibrate) navigator.vibrate(500);
+                        } else {
+                            document.getElementById('routeStatus').style.background = "#34C759";
+                            document.getElementById('routeInfo').innerText = "Safe within Fence";
+                        }
+                    }
+
                     let batt = 0;
                     try { const b = await navigator.getBattery(); batt = Math.round(b.level * 100); } catch(e){}
 
-                    // Update Firebase
-                    update(ref(db, `cars/${driver}`), { lat, lng, speed, batt, lastUpdated: Date.now() });
-                    push(ref(db, `history/${driver}/${today}`), { lat, lng, speed, time: Date.now(), batt });
+                    update(ref(db, `cars/${driver}`), { lat, lng, speed: speedKMH, batt, lastUpdated: Date.now() });
+                    push(ref(db, `history/${driver}/${today}`), { lat, lng, speed: speedKMH, time: Date.now(), batt });
 
-                    // Auto-Center Map
+                    document.getElementById('liveSpeed').innerText = `Speed: ${speedKMH} km/h`;
+                    document.getElementById('statBatt').innerText = batt;
                     map.panTo([lat, lng]);
 
-                    document.getElementById('liveSpeed').innerText = `Speed: ${speed} km/h`;
                 }, null, { enableHighAccuracy: true });
 
                 if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
@@ -215,59 +252,19 @@
                     vehicleMarkers[driver] = L.marker([lat, lng], { icon: getVehicleType(driver) }).addTo(map).bindPopup(driver.toUpperCase());
                 } else {
                     vehicleMarkers[driver].setLatLng([lat, lng]);
-                    vehicleMarkers[driver].setIcon(getVehicleType(driver));
                 }
             }
         });
 
-        // --- RESTORED FUEL & REPORT LOGIC ---
-        window.submitFuel = async () => {
-            const driver = document.getElementById('driverPicker').value;
-            const amount = document.getElementById('fuelAmount').value;
-            const liters = document.getElementById('fuelLiters').value;
-            if(!amount || !liters) return alert("Please fill all fields");
-            await push(ref(db, 'fuelLogs'), { driver, amount, liters, date: new Date().toLocaleDateString(), time: Date.now() });
-            alert("Fuel entry saved!");
-            closeFuelModal();
-        };
-
-        window.loadDashboard = async () => {
-            const snap = await get(ref(db, 'fuelLogs'));
-            if(!snap.exists()) return;
-            const logs = Object.values(snap.val());
-            const dataMap = {};
-            logs.forEach(l => dataMap[l.driver] = (dataMap[l.driver] || 0) + parseFloat(l.amount));
-            
-            if(fuelChartInstance) fuelChartInstance.destroy();
-            fuelChartInstance = new Chart(document.getElementById('fuelChart'), {
-                type: 'bar',
-                data: { labels: Object.keys(dataMap), datasets: [{ label: 'Total PHP Spent', data: Object.values(dataMap), backgroundColor: '#007AFF' }] }
-            });
-        };
-
-        window.exportDataToExcel = async () => {
-            const snap = await get(ref(db, 'fuelLogs'));
-            if(!snap.exists()) return alert("No data to export");
-            const ws = XLSX.utils.json_to_sheet(Object.values(snap.val()));
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Fuel_History");
-            XLSX.writeFile(wb, "iMerch_Fleet_Report.xlsx");
-        };
-
         window.updateDriverProfile = () => {
             const picker = document.getElementById('driverPicker');
             const driver = picker.value;
-            document.getElementById('profilePic').src = driver + ".jpg"; // Restored Ron Sarmenta.jpg logic
+            document.getElementById('profilePic').src = driver + ".jpg";
             document.getElementById('displayDriver').innerText = picker.options[picker.selectedIndex].text;
         };
 
-        // UI Handlers
-        window.openRouteModal = () => document.getElementById('routeModal').style.display = 'flex';
-        window.closeRouteModal = () => document.getElementById('routeModal').style.display = 'none';
         window.openFuelModal = () => document.getElementById('fuelModal').style.display = 'flex';
         window.closeFuelModal = () => document.getElementById('fuelModal').style.display = 'none';
-        window.openChartModal = () => { document.getElementById('chartModal').style.display = 'flex'; window.loadDashboard(); };
-        window.closeChartModal = () => document.getElementById('chartModal').style.display = 'none';
         window.toggleTheme = () => document.body.classList.toggle('dark-mode');
 
         window.updateDriverProfile();
