@@ -69,6 +69,9 @@
 
         .chart-container { width: 100%; margin-top: 15px; background: var(--card-bg); border-radius: 15px; padding: 10px; box-sizing: border-box; }
         
+        .log-calendar { width: 100%; margin-top: 10px; background: var(--card-bg); border-radius: 15px; padding: 10px; font-size: 12px; }
+        .log-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #ddd; }
+
         .vehicle-toggle-row { display: flex; background: var(--card-bg); border-radius: 12px; padding: 4px; width: 100%; gap: 4px; }
         .v-btn { flex: 1; padding: 8px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; background: transparent; color: var(--text); font-size: 13px; }
         .v-btn.active { background: #007AFF; color: white; }
@@ -85,15 +88,15 @@
             background: rgba(0,0,0,0.5); align-items: center; justify-content: center;
         }
         .modal-content {
-            background: var(--bg); padding: 20px; border-radius: 20px; width: 90%; max-width: 400px;
+            background: var(--bg); padding: 20px; border-radius: 20px; width: 90%; max-width: 450px;
             display: flex; flex-direction: column; gap: 15px; color: var(--text);
         }
 
         .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
         .export-btn { background: #34C759; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer; }
         
-        .driver-container { display: flex; align-items: center; gap: 14px; width: 100%; }
-        .profile-img { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #007AFF; object-fit: cover; }
+        .driver-container { display: flex; align-items: center; gap: 14px; width: 100%; padding: 5px 0; }
+        .profile-img { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #007AFF; object-fit: cover; background: #eee; }
         select, input { background: var(--card-bg); color: var(--text); border: 1px solid #ddd; padding: 12px; border-radius: 12px; width: 100%; box-sizing: border-box; }
     </style>
 </head>
@@ -126,7 +129,7 @@
         </div>
 
         <div class="driver-container">
-            <img id="profilePic" src="ron.jpg" class="profile-img">
+            <img id="profilePic" src="Ron Sarmenta.jpg" class="profile-img">
             <div>
                 <span id="displayDriver" style="font-weight:800;">Ron Sarmenta</span><br>
                 <span id="lastSeen" style="font-size:11px; opacity: 0.7;">System Ready</span>
@@ -149,18 +152,23 @@
     </div>
 
     <div id="chartModal">
-        <div class="modal-content" style="max-width: 500px; max-height: 90vh; overflow-y: auto;">
-            <h3 style="margin:0; text-align:center;">📊 Fuel Analytics</h3>
+        <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
+            <h3 style="margin:0; text-align:center;">📊 Fleet Analytics</h3>
             
             <div class="chart-container">
                 <canvas id="dailyChart"></canvas>
             </div>
-            
-            <div class="chart-container">
-                <canvas id="monthlyChart"></canvas>
+
+            <h4 style="margin:10px 0 5px 0;">📅 Daily Log Calendar</h4>
+            <div id="logCalendar" class="log-calendar">
+                <div style="text-align:center; opacity:0.5;">No logs found</div>
             </div>
 
-            <button class="export-btn" style="background:#8E8E93;" onclick="closeChartModal()">Close Dashboard</button>
+            <div class="action-grid" style="margin-top:10px;">
+                <button class="export-btn" onclick="exportAllFuelLogs()">📂 Export All to Excel</button>
+                <button class="export-btn" style="background:#FF3B30;" onclick="clearFuelLogs()">🗑️ Clear All Logs</button>
+            </div>
+            <button class="export-btn" style="background:#8E8E93; width:100%; margin-top:5px;" onclick="closeChartModal()">Close</button>
         </div>
     </div>
 
@@ -179,15 +187,107 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, update, push, get, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, update, push, get, set, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = { databaseURL: "https://cartracker-1df45-default-rtdb.firebaseio.com/" };
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        let dailyChart, monthlyChart;
+        // --- PASSWORD PROTECTION ---
+        const MASTER_PWD = "admin123"; // Change this to your preferred password
 
-        // --- FUEL LOGIC ---
+        const map = L.map('map', { zoomControl: false }).setView([14.5794, 121.0359], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        let dailyChart;
+
+        // --- EXPORT ALL LOGS ---
+        window.exportAllFuelLogs = async () => {
+            const snapshot = await get(ref(db, `fuelLogs`));
+            if(!snapshot.exists()) return alert("No data to export.");
+
+            const logs = Object.values(snapshot.val());
+            const data = logs.sort((a,b) => b.timestamp - a.timestamp).map(l => ({
+                Date: l.date,
+                Time: new Date(l.timestamp).toLocaleTimeString(),
+                Driver: l.driver.toUpperCase(),
+                Amount_PHP: l.amount,
+                Liters_L: l.liters
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "AllFuelLogs");
+            XLSX.writeFile(wb, `iMerch_Fleet_FullReport_${new Date().toISOString().split('T')[0]}.xlsx`);
+        };
+
+        // --- SECURE CLEAR LOGS ---
+        window.clearFuelLogs = async () => {
+            const pwd = prompt("Enter Admin Password to clear all logs:");
+            
+            if (pwd === null) return; // User cancelled
+            
+            if (pwd === MASTER_PWD) {
+                if(confirm("DANGER: This will permanently delete EVERY log. Are you sure?")) {
+                    await remove(ref(db, `fuelLogs`));
+                    alert("Database Cleared Successfully.");
+                    closeChartModal();
+                }
+            } else {
+                alert("Incorrect Password. Access Denied.");
+            }
+        };
+
+        // --- DASHBOARD LOGIC ---
+        window.openChartModal = async () => {
+            document.getElementById('chartModal').style.display = 'flex';
+            const snapshot = await get(ref(db, `fuelLogs`));
+            const logDiv = document.getElementById('logCalendar');
+            
+            if(!snapshot.exists()) {
+                logDiv.innerHTML = '<div style="text-align:center; opacity:0.5;">No logs found</div>';
+                if(dailyChart) dailyChart.destroy();
+                return;
+            }
+
+            const logs = Object.values(snapshot.val()).sort((a,b) => b.timestamp - a.timestamp);
+            
+            logDiv.innerHTML = logs.map(l => `
+                <div class="log-item">
+                    <span><strong>${l.date}</strong> - ${l.driver.toUpperCase()}</span>
+                    <span>₱${l.amount} (${l.liters}L)</span>
+                </div>
+            `).join('');
+
+            renderDailyChart(logs);
+        };
+
+        function renderDailyChart(logs) {
+            const ctx = document.getElementById('dailyChart').getContext('2d');
+            const last7Days = [...Array(7)].map((_, i) => {
+                const d = new Date(); d.setDate(d.getDate() - i);
+                return d.toISOString().split('T')[0];
+            }).reverse();
+
+            const dailyTotals = last7Days.map(date => logs.filter(l => l.date === date).reduce((sum, l) => sum + l.amount, 0));
+            if(dailyChart) dailyChart.destroy();
+            dailyChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: last7Days.map(d => d.split('-').slice(1).join('/')),
+                    datasets: [{ label: 'Fleet Spend (PHP)', data: dailyTotals, borderColor: '#007AFF', tension: 0.4, fill: true, backgroundColor: 'rgba(0,122,255,0.1)' }]
+                }
+            });
+        }
+
+        // --- PHOTO & DRIVER LOGIC ---
+        window.updateDriverProfile = () => {
+            const picker = document.getElementById('driverPicker');
+            const val = picker.value;
+            document.getElementById('profilePic').src = (val === 'ron') ? "Ron Sarmenta.jpg" : val + ".jpg";
+            document.getElementById('displayDriver').innerText = picker.options[picker.selectedIndex].text;
+        };
+
         window.submitFuel = async () => {
             const amt = document.getElementById('fuelAmount').value;
             const ltr = document.getElementById('fuelLiters').value;
@@ -203,89 +303,16 @@
             });
 
             alert("Fuel Logged!");
+            document.getElementById('fuelAmount').value = '';
+            document.getElementById('fuelLiters').value = '';
             closeFuelModal();
         };
 
-        // --- DASHBOARD CHARTS LOGIC ---
-        window.openChartModal = async () => {
-            document.getElementById('chartModal').style.display = 'flex';
-            const snapshot = await get(ref(db, `fuelLogs`));
-            if(!snapshot.exists()) return;
-
-            const logs = Object.values(snapshot.val());
-            renderDailyChart(logs);
-            renderMonthlyChart(logs);
-        };
-
-        function renderDailyChart(logs) {
-            const ctx = document.getElementById('dailyChart').getContext('2d');
-            const last7Days = [...Array(7)].map((_, i) => {
-                const d = new Date();
-                d.setDate(d.getDate() - i);
-                return d.toISOString().split('T')[0];
-            }).reverse();
-
-            const dailyTotals = last7Days.map(date => {
-                return logs.filter(l => l.date === date).reduce((sum, l) => sum + l.amount, 0);
-            });
-
-            if(dailyChart) dailyChart.destroy();
-            dailyChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: last7Days.map(d => d.split('-').slice(1).join('/')),
-                    datasets: [{
-                        label: 'Daily Fuel Spend (PHP)',
-                        data: dailyTotals,
-                        borderColor: '#007AFF',
-                        backgroundColor: 'rgba(0, 122, 255, 0.1)',
-                        fill: true,
-                        tension: 0.4
-                    }]
-                }
-            });
-        }
-
-        function renderMonthlyChart(logs) {
-            const ctx = document.getElementById('monthlyChart').getContext('2d');
-            const currentMonth = new Date().getMonth();
-            const currentYear = new Date().getFullYear();
-
-            const drivers = ["ron", "mico", "darwin", "eljhay", "vergel"];
-            const monthlyTotals = drivers.map(d => {
-                return logs.filter(l => {
-                    const lDate = new Date(l.timestamp);
-                    return l.driver === d && lDate.getMonth() === currentMonth && lDate.getFullYear() === currentYear;
-                }).reduce((sum, l) => sum + l.amount, 0);
-            });
-
-            if(monthlyChart) monthlyChart.destroy();
-            monthlyChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: drivers.map(d => d.toUpperCase()),
-                    datasets: [{
-                        label: 'Monthly Total per Driver',
-                        data: monthlyTotals,
-                        backgroundColor: ['#007AFF', '#34C759', '#FF9500', '#AF52DE', '#FF3B30']
-                    }]
-                },
-                options: { responsive: true, plugins: { legend: { display: false } } }
-            });
-        }
-
-        // Essential existing functions
         window.closeChartModal = () => document.getElementById('chartModal').style.display = 'none';
         window.openFuelModal = () => document.getElementById('fuelModal').style.display = 'flex';
         window.closeFuelModal = () => document.getElementById('fuelModal').style.display = 'none';
         window.toggleTheme = () => document.body.classList.toggle('dark-mode');
-        window.updateDriverProfile = () => {
-            const picker = document.getElementById('driverPicker');
-            document.getElementById('profilePic').src = picker.value + ".jpg";
-            document.getElementById('displayDriver').innerText = picker.options[picker.selectedIndex].text;
-        };
-
-        // Standard Tracking Logic (Minimized for space)
+        
         let isTracking = false;
         let watchID = null;
         window.toggleTracking = () => {
@@ -295,8 +322,7 @@
                 btn.innerText = "🛑 Stop Tracking";
                 btn.classList.add('tracking-on');
                 watchID = navigator.geolocation.watchPosition(pos => {
-                    const { latitude: lat, longitude: lng } = pos.coords;
-                    update(ref(db, 'cars/car1'), { lat, lng, lastUpdated: new Date().getTime() });
+                    update(ref(db, 'cars/car1'), { lat: pos.coords.latitude, lng: pos.coords.longitude, lastUpdated: new Date().getTime() });
                 }, null, { enableHighAccuracy: true });
             } else {
                 isTracking = false;
