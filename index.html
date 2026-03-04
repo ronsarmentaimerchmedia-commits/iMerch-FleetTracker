@@ -9,18 +9,20 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body, html, #map { height: 100%; width: 100%; margin: 0; padding: 0; }
-        .menu { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; background: white; padding: 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; gap: 10px; }
-        button { padding: 10px 20px; border-radius: 10px; border: none; background: #007AFF; color: white; font-weight: bold; }
-        .status { font-size: 12px; color: #666; text-align: center; margin-top: 5px; }
+        .menu { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; background: white; padding: 15px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 200px; }
+        button { padding: 10px 20px; border-radius: 10px; border: none; background: #007AFF; color: white; font-weight: bold; width: 100%; cursor: pointer; }
+        .speed-display { font-size: 28px; font-weight: bold; color: #007AFF; margin: 5px 0; }
+        .status { font-size: 12px; color: #666; text-align: center; }
+        /* Style for the layer control to make it mobile-friendly */
+        .leaflet-control-layers { border-radius: 10px !important; box-shadow: 0 2px 10px rgba(0,0,0,0.2) !important; }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div class="menu">
-        <div>
-            <button onclick="toggleTracking()" id="btn">📡 Start Live Tracking</button>
-            <div id="status" class="status">Offline</div>
-        </div>
+        <button onclick="toggleTracking()" id="btn">📡 Start Live Tracking</button>
+        <div id="speed" class="speed-display">0 km/h</div>
+        <div id="status" class="status">Offline</div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -28,40 +30,83 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // REPLACE WITH YOUR FIREBASE CONFIG
         const firebaseConfig = { databaseURL: "https://cartracker-1df45-default-rtdb.firebaseio.com/" };
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
         
-        const map = L.map('map').setView([0,0], 2);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        // --- MAP LAYERS SETUP ---
+        const streetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        });
+
+        const satelliteMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
+        });
+
+        const map = L.map('map', {
+            center: [0, 0],
+            zoom: 2,
+            layers: [streetMap] // Default layer
+        });
+
+        // Add the toggle control in the top-right
+        const baseMaps = {
+            "Street View": streetMap,
+            "Satellite View": satelliteMap
+        };
+        L.control.layers(baseMaps).addTo(map);
+
         let carMarker = L.marker([0,0]).addTo(map);
 
-        // RECEIVE: Move marker when DB updates
+        // RECEIVE: Move marker and update speedometer for the monitor
         onValue(ref(db, 'cars/car1'), (snap) => {
             if(snap.exists()){
-                const {lat, lng} = snap.val();
+                const {lat, lng, speed} = snap.val();
                 carMarker.setLatLng([lat, lng]);
                 map.setView([lat, lng], 16);
+                document.getElementById('speed').innerText = (speed || 0) + " km/h";
                 document.getElementById('status').innerText = "Live: " + new Date().toLocaleTimeString();
             }
         });
 
-        // SEND: Watch GPS and update DB
+        // SEND: Watch GPS, calculate speed, and update DB
         let watchID = null;
         window.toggleTracking = () => {
+            const btn = document.getElementById('btn');
+            const statusLabel = document.getElementById('status');
+            const speedLabel = document.getElementById('speed');
+
             if(watchID) {
                 navigator.geolocation.clearWatch(watchID);
                 watchID = null;
-                document.getElementById('btn').innerText = "📡 Start Live Tracking";
+                btn.innerText = "📡 Start Live Tracking";
+                btn.style.background = "#007AFF";
+                statusLabel.innerText = "Tracking Stopped";
+                speedLabel.innerText = "0 km/h";
             } else {
                 watchID = navigator.geolocation.watchPosition(pos => {
-                    set(ref(db, 'cars/car1'), { lat: pos.coords.latitude, lng: pos.coords.longitude });
-                }, err => console.error(err), { enableHighAccuracy: true });
-                document.getElementById('btn').innerText = "🛑 Stop Tracking";
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    
+                    let speedMS = pos.coords.speed || 0; 
+                    let speedKMH = Math.round(speedMS * 3.6); 
+
+                    speedLabel.innerText = speedKMH + " km/h";
+
+                    set(ref(db, 'cars/car1'), { 
+                        lat: lat, 
+                        lng: lng,
+                        speed: speedKMH 
+                    });
+                }, err => {
+                    console.error(err);
+                    alert("Please enable GPS/Location services.");
+                }, { enableHighAccuracy: true });
+
+                btn.innerText = "🛑 Stop Tracking";
+                btn.style.background = "#FF3B30";
             }
         };
     </script>
 </body>
-
 </html>
