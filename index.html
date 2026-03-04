@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Merch-FleetTracker</title>
+    <title>iMerch FleetLink</title>
     
     <link rel="icon" type="image/png" href="i-Merch Media Logo.png">
     <link rel="apple-touch-icon" href="i-Merch Media Logo.png">
@@ -43,6 +43,7 @@
 
         .side-controls { position: absolute; top: 20px; right: 20px; z-index: 1002; display: flex; flex-direction: column; gap: 10px; }
         .control-btn { background: var(--bg); border: 1.5px solid var(--border); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .control-btn.active { background: #007AFF; color: white; }
 
         .menu { 
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
@@ -74,9 +75,10 @@
     </div>
 
     <div class="side-controls">
-        <div class="control-btn" onclick="toggleTheme()">🌓</div>
-        <div class="control-btn" onclick="toggleMapStyle()">🛰️</div>
-        <div class="control-btn" onclick="openRouteModal()">🗺️</div>
+        <div class="control-btn" onclick="toggleTheme()" title="Toggle Dark Mode">🌓</div>
+        <div class="control-btn" id="followBtn" onclick="toggleFollowMe()" title="Follow Me">📍</div>
+        <div class="control-btn" onclick="toggleMapStyle()" title="Satellite View">🛰️</div>
+        <div class="control-btn" onclick="openRouteModal()" title="History">🗺️</div>
     </div>
 
     <div id="map"></div>
@@ -86,7 +88,7 @@
             <img id="profilePic" src="Ron Sarmenta.jpg" class="profile-img" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3135/3135715.png'">
             <div>
                 <b id="displayDriver" style="font-size: 18px;">Ron Sarmenta</b><br>
-                <span class="update-time">Update: <span id="lastUpdateTime">--:--:--</span></span>
+                <span class="update-time">Last Seen: <span id="lastUpdateTime">--:--:--</span></span>
             </div>
         </div>
 
@@ -155,19 +157,41 @@
         let currentMapStyle = 'street';
         let vehicleMarkers = {};
         let selectedType = 'car';
-        let currentBattery = "--";
         let fuelChartInstance = null;
+        let followMe = false;
 
-        // Distance Tracker Variables
+        // Stats Variables
         let totalDistance = 0;
         let lastPosition = null;
+        let deviceBattery = "--";
 
         const carIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/741/741407.png', iconSize: [40, 40], iconAnchor: [20, 20] });
         const bikeIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/2965/2965319.png', iconSize: [40, 40], iconAnchor: [20, 20] });
 
-        // Haversine Distance Calculator
+        // --- Follow Me Logic ---
+        window.toggleFollowMe = () => {
+            followMe = !followMe;
+            const fBtn = document.getElementById('followBtn');
+            fBtn.classList.toggle('active', followMe);
+            if(followMe && lastPosition) map.panTo([lastPosition.lat, lastPosition.lng]);
+        };
+
+        // --- Battery Logic ---
+        async function updateBatteryDisplay() {
+            if ('getBattery' in navigator) {
+                const battery = await navigator.getBattery();
+                deviceBattery = Math.round(battery.level * 100);
+                document.getElementById('statBatt').innerText = deviceBattery;
+                battery.onlevelchange = () => {
+                    deviceBattery = Math.round(battery.level * 100);
+                    document.getElementById('statBatt').innerText = deviceBattery;
+                };
+            }
+        }
+        updateBatteryDisplay();
+
         function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Earth radius in km
+            const R = 6371; 
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -258,7 +282,6 @@
         };
 
         window.adminClearLogs = async () => {
-            // Updated with password protection
             if(prompt("Enter Password to Clear Logs:") === "1234") {
                 if(confirm("Are you sure? This cannot be undone.")) {
                     await remove(ref(db, 'fuelLogs'));
@@ -270,29 +293,47 @@
             }
         };
 
+        // --- Database Sync & Last Seen ---
         onValue(ref(db, 'cars'), (snapshot) => {
             const data = snapshot.val();
             if(!data) return;
+            const currentSelected = document.getElementById('driverPicker').value;
+            
             for(let driver in data) {
                 const { lat, lng, type, lastUpdated } = data[driver];
                 const icon = (type === 'bike') ? bikeIcon : carIcon;
+                
+                // Update marker
                 if(!vehicleMarkers[driver]) {
                     vehicleMarkers[driver] = L.marker([lat, lng], { icon: icon }).addTo(map).bindPopup(driver.toUpperCase());
                 } else {
                     vehicleMarkers[driver].setLatLng([lat, lng]).setIcon(icon);
                 }
+
+                // Update UI for the selected driver
+                if(driver === currentSelected) {
+                    document.getElementById('lastUpdateTime').innerText = lastUpdated || "--:--:--";
+                }
             }
         });
 
-        window.updateDriverProfile = () => {
+        window.updateDriverProfile = async () => {
             const picker = document.getElementById('driverPicker');
             const driver = picker.value;
             document.getElementById('profilePic').src = (driver === "ron") ? "Ron Sarmenta.jpg" : driver + ".jpg";
             document.getElementById('displayDriver').innerText = picker.options[picker.selectedIndex].text;
-            // Reset distance when switching drivers
+            
+            // Sync current state from DB for selected driver
+            const snapshot = await get(ref(db, `cars/${driver}`));
+            const data = snapshot.val();
+            if(data) {
+                document.getElementById('lastUpdateTime').innerText = data.lastUpdated || "--:--:--";
+                document.getElementById('statDist').innerText = data.distance || "0.00";
+                if(data.lat && data.lng) map.setView([data.lat, data.lng], 15);
+            }
+            
             totalDistance = 0;
             lastPosition = null;
-            document.getElementById('statDist').innerText = "0.00";
         };
 
         window.toggleTracking = async () => {
@@ -306,33 +347,34 @@
                     const lat = pos.coords.latitude; 
                     const lng = pos.coords.longitude;
                     const speed = Math.round((pos.coords.speed || 0) * 3.6);
+                    const now = new Date().toLocaleTimeString();
                     
-                    // Live Distance Calculation
                     if (lastPosition) {
                         const dist = calculateDistance(lastPosition.lat, lastPosition.lng, lat, lng);
-                        if (dist > 0.005) { // Filter out GPS jitter (5 meters)
-                            totalDistance += dist;
-                        }
+                        if (dist > 0.005) totalDistance += dist;
                     }
                     lastPosition = { lat, lng };
 
                     document.getElementById('liveSpeed').innerText = speed;
                     document.getElementById('statDist').innerText = totalDistance.toFixed(2);
+                    document.getElementById('lastUpdateTime').innerText = now;
                     
                     update(ref(db, `cars/${driver}`), { 
-                        lat, lng, 
-                        speed, 
+                        lat, lng, speed, 
                         distance: totalDistance.toFixed(2),
+                        battery: deviceBattery,
                         type: selectedType, 
-                        lastUpdated: new Date().toLocaleTimeString() 
+                        lastUpdated: now 
                     });
-                    map.panTo([lat, lng]);
+
+                    if(followMe) map.panTo([lat, lng]);
+
                 }, null, { enableHighAccuracy: true });
             } else {
                 window.isTracking = false;
                 navigator.geolocation.clearWatch(window.watchID);
                 btn.innerText = "📡 Start Tracking"; btn.style.background = "#007AFF";
-                lastPosition = null; // Reset position for next session
+                lastPosition = null;
             }
         };
 
@@ -346,4 +388,3 @@
     </script>
 </body>
 </html>
-
