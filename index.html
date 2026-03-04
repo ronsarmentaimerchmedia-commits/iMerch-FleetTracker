@@ -14,12 +14,15 @@
         body, html, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #f0f0f0; }
         .menu { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1000; background: white; padding: 15px; border-radius: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 280px; border: 2px solid #007AFF; transition: all 0.3s; }
         
-        /* Driver Info Styles with Profile Image */
-        .driver-container { display: flex; align-items: center; gap: 12px; width: 100%; padding-bottom: 10px; border-bottom: 1px solid #eee; margin-bottom: 5px; }
-        .profile-img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #007AFF; object-fit: cover; background: #eee; }
-        .driver-text { display: flex; flex-direction: column; align-items: flex-start; }
+        /* Premium Driver Info Styles */
+        .driver-container { display: flex; align-items: center; gap: 12px; width: 100%; padding-bottom: 10px; border-bottom: 1px solid #eee; margin-bottom: 5px; position: relative; }
+        .profile-img { width: 48px; height: 48px; border-radius: 50%; border: 2px solid #007AFF; object-fit: cover; background: #eee; }
+        .driver-text { display: flex; flex-direction: column; align-items: flex-start; flex-grow: 1; }
         .driver-name { font-size: 16px; font-weight: bold; color: #222; }
         .driver-user { font-size: 11px; color: #007AFF; font-weight: 600; text-transform: lowercase; }
+        
+        /* New Last Seen Badge */
+        .last-seen { font-size: 9px; color: #888; margin-top: 2px; font-style: italic; }
 
         button { padding: 12px 20px; border-radius: 12px; border: none; background: #007AFF; color: white; font-weight: bold; width: 100%; cursor: pointer; font-size: 16px; margin-top: 5px; }
         .stats-row { display: flex; gap: 10px; align-items: center; margin: 5px 0; width: 100%; justify-content: space-around; }
@@ -41,6 +44,7 @@
             <div class="driver-text">
                 <span class="driver-name" id="displayDriver">Ron Sanity</span>
                 <span class="driver-user" id="displayUser">@ronsarmenta_imerch</span>
+                <span class="last-seen" id="lastSeen">Last Seen: Just now</span>
             </div>
         </div>
 
@@ -100,6 +104,12 @@
 
                 if(data.driverName) document.getElementById('displayDriver').innerText = data.driverName;
                 if(data.username) document.getElementById('displayUser').innerText = "@" + data.username;
+                
+                // Update Last Seen Timestamp
+                if(data.lastUpdate) {
+                    const updateDate = new Date(data.lastUpdate);
+                    document.getElementById('lastSeen').innerText = "Last Seen: " + updateDate.toLocaleTimeString('en-PH');
+                }
 
                 document.getElementById('speed').innerText = data.speed || 0;
                 document.getElementById('distance').innerText = "🏁 " + (data.dist || "0.00") + " km";
@@ -119,7 +129,7 @@
                     mainMenu.className = "menu outside-fence";
                     if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
                 } else {
-                    statusLabel.innerText = "Live: " + new Date().toLocaleTimeString('en-PH');
+                    statusLabel.innerText = "Live Tracker Active";
                     statusLabel.className = "status";
                     mainMenu.className = "menu";
                 }
