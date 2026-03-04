@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>iMerch FleetTrack</title>
+    <title>iMerch FleetLink</title>
     
     <link rel="icon" type="image/png" href="i-Merch Media Logo.png">
     <link rel="apple-touch-icon" href="i-Merch Media Logo.png">
@@ -52,9 +52,10 @@
         }
         .modal-content { background: var(--bg); padding: 20px; border-radius: 20px; width: 90%; max-width: 450px; display: flex; flex-direction: column; gap: 15px; color: var(--text); overflow-y: auto; max-height: 90vh; }
         select, input { background: var(--card-bg); color: var(--text); border: 1px solid #ddd; padding: 12px; border-radius: 12px; width: 100%; }
-        .profile-img { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #007AFF; }
+        .profile-img { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #007AFF; object-fit: cover; }
         
         .chart-container { background: var(--card-bg); border-radius: 15px; padding: 10px; margin: 10px 0; }
+        .stats-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; padding-top: 5px; border-top: 1px solid #eee; margin-top: 5px; }
     </style>
 </head>
 <body class="light-mode">
@@ -65,7 +66,7 @@
 
     <div class="logo-header">
         <img src="i-Merch Media Logo.png" class="header-logo-img">
-        <div class="logo-text">Fleet<span>Track</span></div>
+        <div class="logo-text">Fleet<span>Link</span></div>
     </div>
 
     <div class="side-controls">
@@ -77,6 +78,8 @@
     
     <div class="menu">
         <select id="driverPicker" onchange="updateDriverProfile()">
+            <option value="auto">🚗 Company Auto</option>
+            <option value="motor">🏍️ Company Motorcycle</option>
             <option value="ron">Ron Sarmenta</option>
             <option value="mico">Mico Balmaceda</option>
             <option value="darwin">Darwin Pengson</option>
@@ -85,10 +88,14 @@
         </select>
 
         <div style="display:flex; align-items:center; gap:10px;">
-            <img id="profilePic" src="Ron Sarmenta.jpg" class="profile-img">
-            <div>
-                <b id="displayDriver">Ron Sarmenta</b><br>
+            <img id="profilePic" src="auto.jpg" class="profile-img" onerror="this.src='https://cdn-icons-png.flaticon.com/512/6596/6596121.png'">
+            <div style="flex-grow: 1;">
+                <b id="displayDriver">Company Auto</b><br>
                 <span id="lastSeen" style="font-size:11px;">Status: Standby</span>
+                <div class="stats-row">
+                    <span>Dist: <span id="statDist">0.00</span> km</span>
+                    <span>🔋: <span id="statBatt">--</span>%</span>
+                </div>
             </div>
         </div>
 
@@ -104,6 +111,8 @@
         <div class="modal-content">
             <h3>🗺️ Route History</h3>
             <select id="histDriver">
+                <option value="auto">Company Auto</option>
+                <option value="motor">Company Motorcycle</option>
                 <option value="ron">Ron Sarmenta</option>
                 <option value="mico">Mico Balmaceda</option>
                 <option value="darwin">Darwin Pengson</option>
@@ -141,7 +150,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, update, push, get, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, update, push, get, remove, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = { databaseURL: "https://cartracker-1df45-default-rtdb.firebaseio.com/" };
         const app = initializeApp(firebaseConfig);
@@ -152,187 +161,116 @@
         
         let historyLayer = null;
         let fuelChartInstance = null;
+        let wakeLock = null;
         document.getElementById('histDate').value = new Date().toISOString().split('T')[0];
 
-        // --- ADMIN CLEAR LOGS ---
-        window.adminClearLogs = async () => {
-            const pass = prompt("Enter Admin Password to CLEAR ALL DATA:");
-            if (pass === "admin123") {
-                if (confirm("Are you sure? This will permanently delete all fuel logs and route history.")) {
-                    try {
-                        await remove(ref(db, 'fuelLogs'));
-                        await remove(ref(db, 'history'));
-                        alert("Database cleared successfully.");
-                        location.reload(); 
-                    } catch (e) {
-                        alert("Error clearing database.");
-                    }
-                }
-            } else if (pass !== null) {
-                alert("Incorrect Password.");
-            }
-        };
-
-        // --- DASHBOARD CHART ---
-        window.loadDashboard = async () => {
-            const fuelSnap = await get(ref(db, `fuelLogs`));
-            const ctx = document.getElementById('fuelChart').getContext('2d');
-            if(fuelChartInstance) fuelChartInstance.destroy();
-
-            if(!fuelSnap.exists()) {
-                // Draw empty chart if no data
-                fuelChartInstance = new Chart(ctx, { type: 'bar', data: { labels: ['No Data'], datasets: [{ data: [0] }] } });
-                return;
-            }
-
-            const logs = Object.values(fuelSnap.val());
-            const driverTotals = {};
-            logs.forEach(log => {
-                driverTotals[log.driver] = (driverTotals[log.driver] || 0) + log.amount;
-            });
-
-            fuelChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: Object.keys(driverTotals).map(d => d.toUpperCase()),
-                    datasets: [{
-                        label: 'Fuel Spending (PHP)',
-                        data: Object.values(driverTotals),
-                        backgroundColor: '#007AFF',
-                        borderRadius: 8
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true } }
-                }
-            });
-        };
-
-        // --- DISTANCE CALCULATION ---
+        // --- DISTANCE CALC ---
         function calculateDistance(coords) {
             let total = 0;
             for (let i = 0; i < coords.length - 1; i++) {
-                const p1 = coords[i];
-                const p2 = coords[i+1];
+                const p1 = coords[i], p2 = coords[i+1];
                 const R = 6371; 
-                const dLat = (p2[0]-p1[0]) * Math.PI / 180;
-                const dLon = (p2[1]-p1[1]) * Math.PI / 180;
-                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                          Math.cos(p1[0]*Math.PI/180) * Math.cos(p2[0]*Math.PI/180) *
-                          Math.sin(dLon/2) * Math.sin(dLon/2);
-                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                total += R * c;
+                const dLat = (p2[0]-p1[0]) * Math.PI / 180, dLon = (p2[1]-p1[1]) * Math.PI / 180;
+                const a = Math.sin(dLat/2)**2 + Math.cos(p1[0]*Math.PI/180) * Math.cos(p2[0]*Math.PI/180) * Math.sin(dLon/2)**2;
+                total += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
             }
             return total.toFixed(2);
         }
 
-        // --- EXPORT & HISTORY ---
-        window.exportDataToExcel = async () => {
-            const fuelSnap = await get(ref(db, `fuelLogs`));
-            const histSnap = await get(ref(db, `history`));
-            const wb = XLSX.utils.book_new();
-
-            if(fuelSnap.exists()){
-                const fuelData = Object.values(fuelSnap.val()).map(l => ({
-                    Date: l.date, Driver: l.driver, Amount: l.amount, Liters: l.liters
-                }));
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(fuelData), "Fuel Logs");
-            }
-
-            if(histSnap.exists()){
-                const routeRows = [];
-                const drivers = histSnap.val();
-                for(let driver in drivers){
-                    for(let date in drivers[driver]){
-                        const points = Object.values(drivers[driver][date]);
-                        points.forEach(p => {
-                            routeRows.push({
-                                Driver: driver, Date: date, Time: new Date(p.time).toLocaleTimeString(),
-                                Lat: p.lat, Lng: p.lng
-                            });
-                        });
-                    }
-                }
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(routeRows), "Location History");
-            }
-            XLSX.writeFile(wb, `iMerch_Fleet_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
-        };
-
-        window.loadRouteHistory = async () => {
-            const driver = document.getElementById('histDriver').value;
-            const date = document.getElementById('histDate').value;
-            const snapshot = await get(ref(db, `history/${driver}/${date}`));
-            if(!snapshot.exists()) return alert("No logs found.");
-            const points = Object.values(snapshot.val()).sort((a,b) => a.time - b.time);
-            const coords = points.map(p => [p.lat, p.lng]);
-            const dist = calculateDistance(coords);
-            if(historyLayer) map.removeLayer(historyLayer);
-            historyLayer = L.polyline(coords, { color: '#FF9500', weight: 5 }).addTo(map);
-            map.fitBounds(historyLayer.getBounds());
-            document.getElementById('routeStatus').style.display = 'block';
-            closeRouteModal();
-        };
-
-        window.clearRouteLayer = () => {
-            if(historyLayer) map.removeLayer(historyLayer);
-            document.getElementById('routeStatus').style.display = 'none';
-        };
-
         // --- TRACKING ---
         let isTracking = false;
         let watchID = null;
-        window.toggleTracking = () => {
+
+        window.toggleTracking = async () => {
             const btn = document.getElementById('btn');
             const driver = document.getElementById('driverPicker').value;
             const today = new Date().toISOString().split('T')[0];
+
             if (!isTracking) {
                 isTracking = true;
                 btn.innerText = "🛑 Stop Tracking";
                 btn.style.background = "#FF3B30";
-                watchID = navigator.geolocation.watchPosition(pos => {
-                    const lat = pos.coords.latitude;
-                    const lng = pos.coords.longitude;
-                    update(ref(db, `cars/${driver}`), { lat, lng, lastUpdated: Date.now() });
-                    push(ref(db, `history/${driver}/${today}`), { lat, lng, time: Date.now() });
-                }, null, { enableHighAccuracy: true });
+                alert(`Tracking started for ${driver.toUpperCase()}. Keep GPS on.`);
+
+                watchID = navigator.geolocation.watchPosition(async pos => {
+                    const lat = pos.coords.latitude, lng = pos.coords.longitude;
+                    let currentBatt = 0;
+                    try { const b = await navigator.getBattery(); currentBatt = Math.round(b.level * 100); } catch(e){}
+                    
+                    update(ref(db, `cars/${driver}`), { lat, lng, batt: currentBatt, lastUpdated: Date.now() });
+                    push(ref(db, `history/${driver}/${today}`), { lat, lng, time: Date.now(), batt: currentBatt });
+                }, null, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+
+                if ('wakeLock' in navigator) { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
             } else {
                 isTracking = false;
                 navigator.geolocation.clearWatch(watchID);
+                if (wakeLock) { wakeLock.release(); wakeLock = null; }
                 btn.innerText = "📡 Start Tracking";
                 btn.style.background = "#007AFF";
             }
         };
 
-        // UI HELPERS
+        // --- PROFILE & LIVE STATS ---
+        window.updateDriverProfile = () => {
+            const p = document.getElementById('driverPicker');
+            const driver = p.value;
+            const img = document.getElementById('profilePic');
+            img.src = driver + ".jpg";
+            document.getElementById('displayDriver').innerText = p.options[p.selectedIndex].text;
+            
+            const today = new Date().toISOString().split('T')[0];
+            onValue(ref(db, `history/${driver}/${today}`), (snapshot) => {
+                if(snapshot.exists()){
+                    const points = Object.values(snapshot.val()).sort((a,b) => a.time - b.time);
+                    const coords = points.map(p => [p.lat, p.lng]);
+                    document.getElementById('statDist').innerText = calculateDistance(coords);
+                    document.getElementById('statBatt').innerText = points[points.length-1].batt || "--";
+                } else {
+                    document.getElementById('statDist').innerText = "0.00";
+                    document.getElementById('statBatt').innerText = "--";
+                }
+            });
+        };
+
+        // --- HISTORY ---
+        window.loadRouteHistory = async () => {
+            const driver = document.getElementById('histDriver').value;
+            const date = document.getElementById('histDate').value;
+            const snapshot = await get(ref(db, `history/${driver}/${date}`));
+            if(!snapshot.exists()) return alert("No history for this date.");
+            
+            const points = Object.values(snapshot.val()).sort((a,b) => a.time - b.time);
+            const coords = points.map(p => [p.lat, p.lng]);
+            
+            if(historyLayer) map.removeLayer(historyLayer);
+            historyLayer = L.polyline(coords, { color: '#FF9500', weight: 5, opacity: 0.8 }).addTo(map);
+            map.fitBounds(historyLayer.getBounds());
+            
+            document.getElementById('routeStatus').style.display = 'block';
+            closeRouteModal();
+        };
+
+        // UI Helpers
         window.openRouteModal = () => document.getElementById('routeModal').style.display = 'flex';
         window.closeRouteModal = () => document.getElementById('routeModal').style.display = 'none';
         window.openFuelModal = () => document.getElementById('fuelModal').style.display = 'flex';
         window.closeFuelModal = () => document.getElementById('fuelModal').style.display = 'none';
-        window.openChartModal = () => {
-            document.getElementById('chartModal').style.display = 'flex';
-            window.loadDashboard();
-        };
+        window.openChartModal = () => { document.getElementById('chartModal').style.display = 'flex'; window.loadDashboard(); };
         window.closeChartModal = () => document.getElementById('chartModal').style.display = 'none';
         window.toggleTheme = () => document.body.classList.toggle('dark-mode');
-        window.updateDriverProfile = () => {
-            const p = document.getElementById('driverPicker');
-            document.getElementById('profilePic').src = p.value + ".jpg";
-            document.getElementById('displayDriver').innerText = p.options[p.selectedIndex].text;
+        window.clearRouteLayer = () => { if(historyLayer) map.removeLayer(historyLayer); document.getElementById('routeStatus').style.display = 'none'; };
+
+        // Database Admin
+        window.adminClearLogs = async () => {
+            if (prompt("Admin Password:") === "admin123") {
+                await remove(ref(db, 'fuelLogs'));
+                await remove(ref(db, 'history'));
+                location.reload();
+            }
         };
-        window.submitFuel = async () => {
-            const amt = document.getElementById('fuelAmount').value;
-            const ltr = document.getElementById('fuelLiters').value;
-            if(!amt || !ltr) return alert("Fill all fields");
-            await push(ref(db, `fuelLogs`), {
-                driver: document.getElementById('driverPicker').value,
-                amount: parseFloat(amt), liters: parseFloat(ltr),
-                date: new Date().toISOString().split('T')[0]
-            });
-            alert("Fuel Logged!");
-            closeFuelModal();
-        };
+
+        window.updateDriverProfile(); // Init
     </script>
 </body>
 </html>
