@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CarTracker PH Live + History + Export</title>
+    <title>iMerch FleetTrack</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
@@ -21,7 +21,7 @@
         
         button { padding: 12px 20px; border-radius: 12px; border: none; background: #007AFF; color: white; font-weight: bold; width: 100%; cursor: pointer; transition: 0.2s; }
         .btn-history { background: #5856D6; padding: 8px; font-size: 14px; }
-        .btn-export { background: #34C759; display: none; margin-top: 5px; } /* Excel Green */
+        .btn-export { background: #34C759; display: none; margin-top: 5px; }
         .viewing-history { border-color: #5856D6 !important; }
 
         .stats-row { display: flex; gap: 10px; align-items: center; margin: 5px 0; width: 100%; justify-content: space-around; }
@@ -32,12 +32,12 @@
 <body>
     <div id="map"></div>
     <div class="menu" id="mainMenu">
-        <select class="driver-selector" id="driverPicker" style="width:100%; padding:8px; border-radius:10px; margin-bottom:5px;">
-            <option value="ron">Ron Sarmenta</option>
-            <option value="mico">Mico Balmaceda</option>
-            <option value="darwin">Darwin Pengson</option>
-            <option value="eljhay">Eljhay Ramos</option>
-            <option value="vergel">Vergel Apurillo</option>
+        <select class="driver-selector" id="driverPicker" onchange="updateVehicleIcon()" style="width:100%; padding:8px; border-radius:10px; margin-bottom:5px;">
+            <option value="ron" data-type="car">Ron Sarmenta (Car)</option>
+            <option value="mico" data-type="moto">Mico Balmaceda (Moto)</option>
+            <option value="darwin" data-type="moto">Darwin Pengson (Moto)</option>
+            <option value="eljhay" data-type="moto">Eljhay Ramos (Moto)</option>
+            <option value="vergel" data-type="moto">Vergel Apurillo (Moto)</option>
         </select>
 
         <div class="driver-container" id="driverBox">
@@ -45,11 +45,11 @@
             <div style="display:flex; flex-direction:column; flex-grow:1;">
                 <span id="displayDriver" style="font-weight:bold;">Ron Sarmenta</span>
                 <span id="displayUser" style="font-size:11px; color:#007AFF;">@ronsarmenta_imerch</span>
-                <span id="lastSeen" style="font-size:9px; color:#888;">Standby</span>
+                <span id="lastSeen" style="font-size:9px; color:#888;">iMerch Fleet Member</span>
             </div>
         </div>
 
-        <button onclick="toggleTracking()" id="btn">📡 Start PH Tracking</button>
+        <button onclick="toggleTracking()" id="btn">📡 Start Fleet Tracking</button>
 
         <div class="history-controls">
             <div class="history-row">
@@ -67,7 +67,7 @@
                 <span id="distance">🏁 0.00 km</span>
             </div>
         </div>
-        <div id="status" class="status">System Ready</div>
+        <div id="status" class="status">iMerch FleetTrack Ready</div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -79,13 +79,40 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
+        // Define Icons
+        const carIcon = L.icon({
+            iconUrl: 'https://cdn-icons-png.flaticon.com/512/744/744465.png',
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
+        });
+
+        const motoIcon = L.icon({
+            iconUrl: 'https://cdn-icons-png.flaticon.com/512/1986/1986937.png',
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
+        });
+
         const map = L.map('map').setView([14.5794, 121.0359], 14);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        let carMarker = L.marker([14.5794, 121.0359]).addTo(map);
+        
+        let carMarker = L.marker([14.5794, 121.0359], {icon: carIcon}).addTo(map);
         let routePath = L.polyline([], {color: '#007AFF', weight: 5}).addTo(map);
 
         let liveListener = null;
         let isHistoryMode = false;
+
+        // --- VEHICLE SWITCHER ---
+        window.updateVehicleIcon = () => {
+            const picker = document.getElementById('driverPicker');
+            const selectedOption = picker.options[picker.selectedIndex];
+            const type = selectedOption.getAttribute('data-type');
+            
+            if (type === 'moto') {
+                carMarker.setIcon(motoIcon);
+            } else {
+                carMarker.setIcon(carIcon);
+            }
+        };
 
         // --- EXPORT LOGIC ---
         window.exportToExcel = async () => {
@@ -96,59 +123,41 @@
             const historyRef = ref(db, `archives/${driverKey}/${date}`);
             const snapshot = await get(historyRef);
 
-            if (!snapshot.exists()) return alert("No data available to export for this selection.");
+            if (!snapshot.exists()) return alert("No logs for export.");
 
             const data = snapshot.val();
-            const rows = [];
+            const rows = Object.keys(data).map(ts => ({
+                "Date": date,
+                "Driver": driverName,
+                "Time": new Date(parseInt(ts)).toLocaleTimeString('en-PH'),
+                "Lat": data[ts].lat,
+                "Lng": data[ts].lng,
+                "Org": "iMerch Media Inc."
+            }));
 
-            // Convert Firebase objects to Excel-friendly rows
-            Object.keys(data).forEach(timestamp => {
-                const point = data[timestamp];
-                const timeStr = new Date(parseInt(timestamp)).toLocaleTimeString('en-PH');
-                rows.push({
-                    "Date": date,
-                    "Driver": driverName,
-                    "Time": timeStr,
-                    "Latitude": point.lat,
-                    "Longitude": point.lng,
-                    "Company": "iMerch Media Inc."
-                });
-            });
-
-            const worksheet = XLSX.utils.json_to_sheet(rows);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "TravelLogs");
-
-            // Direct download
-            XLSX.writeFile(workbook, `iMerch_Log_${driverName}_${date}.xlsx`);
+            const ws = XLSX.utils.json_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Log");
+            XLSX.writeFile(wb, `FleetTrack_${driverName}_${date}.xlsx`);
         };
 
-        // --- HISTORY PLAYER LOGIC ---
+        // --- HISTORY LOGIC ---
         window.loadHistory = async () => {
             const date = document.getElementById('historyDate').value;
             const driver = document.getElementById('driverPicker').value;
-            if(!date) return alert("Select a date first!");
+            if(!date) return alert("Select date!");
 
             if(liveListener) liveListener(); 
             isHistoryMode = true;
-            
             document.getElementById('liveBtn').style.display = "block";
             document.getElementById('exportBtn').style.display = "block";
-            document.getElementById('mainMenu').classList.add('viewing-history');
-
-            const historyRef = ref(db, `archives/${driver}/${date}`);
-            const snapshot = await get(historyRef);
-
+            
+            const snapshot = await get(ref(db, `archives/${driver}/${date}`));
             if(snapshot.exists()) {
-                const data = snapshot.val();
-                const points = Object.values(data).map(p => [p.lat, p.lng]);
+                const points = Object.values(snapshot.val()).map(p => [p.lat, p.lng]);
                 routePath.setLatLngs(points);
                 carMarker.setLatLng(points[points.length - 1]);
                 map.fitBounds(routePath.getBounds());
-                document.getElementById('status').innerText = `Viewing Log: ${date}`;
-            } else {
-                alert("No records found.");
-                backToLive();
             }
         };
 
@@ -156,8 +165,6 @@
             isHistoryMode = false;
             document.getElementById('liveBtn').style.display = "none";
             document.getElementById('exportBtn').style.display = "none";
-            document.getElementById('mainMenu').classList.remove('viewing-history');
-            document.getElementById('status').innerText = "Live Mode";
             startLiveUpdates();
         };
 
@@ -165,14 +172,12 @@
             if(liveListener) liveListener();
             liveListener = onValue(ref(db, 'cars/car1'), (snap) => {
                 if(snap.exists() && !isHistoryMode){
-                    const data = snap.val();
-                    carMarker.setLatLng([data.lat, data.lng]);
-                    if (data.history) {
-                        routePath.setLatLngs(Object.values(data.history).map(pt => [pt.lat, pt.lng]));
-                    }
-                    document.getElementById('speed').innerText = data.speed || 0;
-                    document.getElementById('distance').innerText = "🏁 " + (data.dist || "0.00") + " km";
-                    document.getElementById('battery').innerText = "🔋 " + (data.battery || "--") + "%";
+                    const d = snap.val();
+                    carMarker.setLatLng([d.lat, d.lng]);
+                    if (d.history) routePath.setLatLngs(Object.values(d.history).map(p => [p.lat, p.lng]));
+                    document.getElementById('speed').innerText = d.speed || 0;
+                    document.getElementById('distance').innerText = "🏁 " + (d.dist || "0.00") + " km";
+                    document.getElementById('battery').innerText = "🔋 " + (d.battery || "--") + "%";
                 }
             });
         }
