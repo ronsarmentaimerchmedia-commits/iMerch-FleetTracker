@@ -50,9 +50,12 @@
             display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.5); align-items: center; justify-content: center;
         }
-        .modal-content { background: var(--bg); padding: 20px; border-radius: 20px; width: 90%; max-width: 450px; display: flex; flex-direction: column; gap: 15px; color: var(--text); }
+        .modal-content { background: var(--bg); padding: 20px; border-radius: 20px; width: 90%; max-width: 450px; display: flex; flex-direction: column; gap: 15px; color: var(--text); overflow-y: auto; max-height: 90vh; }
         select, input { background: var(--card-bg); color: var(--text); border: 1px solid #ddd; padding: 12px; border-radius: 12px; width: 100%; }
         .profile-img { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #007AFF; }
+        
+        /* Chart specific style */
+        .chart-container { background: var(--card-bg); border-radius: 15px; padding: 10px; margin: 10px 0; }
     </style>
 </head>
 <body class="light-mode">
@@ -116,9 +119,12 @@
 
     <div id="chartModal">
         <div class="modal-content">
-            <h3>📊 Fleet Dashboard</h3>
+            <h3 style="margin:0;">📊 Fleet Dashboard</h3>
+            <div class="chart-container">
+                <canvas id="fuelChart"></canvas>
+            </div>
             <button class="export-btn" onclick="exportDataToExcel()">📂 Export All Logs (Excel)</button>
-            <button class="export-btn" style="background:#FF3B30;" onclick="closeChartModal()">Close</button>
+            <button class="export-btn" style="background:#8E8E93;" onclick="closeChartModal()">Close</button>
         </div>
     </div>
 
@@ -145,15 +151,51 @@
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         
         let historyLayer = null;
+        let fuelChartInstance = null;
         document.getElementById('histDate').value = new Date().toISOString().split('T')[0];
 
-        // --- DISTANCE CALCULATION (HAVERSINE) ---
+        // --- DASHBOARD CHART LOGIC ---
+        window.loadDashboard = async () => {
+            const fuelSnap = await get(ref(db, `fuelLogs`));
+            if(!fuelSnap.exists()) return;
+
+            const logs = Object.values(fuelSnap.val());
+            const driverTotals = {};
+
+            logs.forEach(log => {
+                driverTotals[log.driver] = (driverTotals[log.driver] || 0) + log.amount;
+            });
+
+            const ctx = document.getElementById('fuelChart').getContext('2d');
+            
+            if(fuelChartInstance) fuelChartInstance.destroy();
+
+            fuelChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(driverTotals).map(d => d.toUpperCase()),
+                    datasets: [{
+                        label: 'Fuel Spending (PHP)',
+                        data: Object.values(driverTotals),
+                        backgroundColor: '#007AFF',
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        };
+
+        // --- DISTANCE CALCULATION ---
         function calculateDistance(coords) {
             let total = 0;
             for (let i = 0; i < coords.length - 1; i++) {
                 const p1 = coords[i];
                 const p2 = coords[i+1];
-                const R = 6371; // Earth radius in km
+                const R = 6371; 
                 const dLat = (p2[0]-p1[0]) * Math.PI / 180;
                 const dLon = (p2[1]-p1[1]) * Math.PI / 180;
                 const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -165,14 +207,12 @@
             return total.toFixed(2);
         }
 
-        // --- EXPORT TO EXCEL (MULTI-SHEET) ---
+        // --- EXPORT & HISTORY ---
         window.exportDataToExcel = async () => {
             const fuelSnap = await get(ref(db, `fuelLogs`));
             const histSnap = await get(ref(db, `history`));
-            
             const wb = XLSX.utils.book_new();
 
-            // 1. Fuel Sheet
             if(fuelSnap.exists()){
                 const fuelData = Object.values(fuelSnap.val()).map(l => ({
                     Date: l.date, Driver: l.driver, Amount: l.amount, Liters: l.liters
@@ -180,7 +220,6 @@
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(fuelData), "Fuel Logs");
             }
 
-            // 2. Route History Sheet
             if(histSnap.exists()){
                 const routeRows = [];
                 const drivers = histSnap.val();
@@ -189,18 +228,14 @@
                         const points = Object.values(drivers[driver][date]);
                         points.forEach(p => {
                             routeRows.push({
-                                Driver: driver,
-                                Date: date,
-                                Time: new Date(p.time).toLocaleTimeString(),
-                                Lat: p.lat,
-                                Lng: p.lng
+                                Driver: driver, Date: date, Time: new Date(p.time).toLocaleTimeString(),
+                                Lat: p.lat, Lng: p.lng
                             });
                         });
                     }
                 }
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(routeRows), "Location History");
             }
-
             XLSX.writeFile(wb, `iMerch_Fleet_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
         };
 
@@ -208,17 +243,13 @@
             const driver = document.getElementById('histDriver').value;
             const date = document.getElementById('histDate').value;
             const snapshot = await get(ref(db, `history/${driver}/${date}`));
-            
             if(!snapshot.exists()) return alert("No logs found.");
-
             const points = Object.values(snapshot.val()).sort((a,b) => a.time - b.time);
             const coords = points.map(p => [p.lat, p.lng]);
             const dist = calculateDistance(coords);
-
             if(historyLayer) map.removeLayer(historyLayer);
             historyLayer = L.polyline(coords, { color: '#FF9500', weight: 5 }).addTo(map);
             map.fitBounds(historyLayer.getBounds());
-
             document.getElementById('routeInfo').innerHTML = `Driver: ${driver.toUpperCase()} | Dist: ${dist} km`;
             document.getElementById('routeStatus').style.display = 'block';
             closeRouteModal();
@@ -229,14 +260,13 @@
             document.getElementById('routeStatus').style.display = 'none';
         };
 
-        // --- TRACKING & GLOBALS ---
+        // --- TRACKING ---
         let isTracking = false;
         let watchID = null;
         window.toggleTracking = () => {
             const btn = document.getElementById('btn');
             const driver = document.getElementById('driverPicker').value;
             const today = new Date().toISOString().split('T')[0];
-
             if (!isTracking) {
                 isTracking = true;
                 btn.innerText = "🛑 Stop Tracking";
@@ -260,7 +290,10 @@
         window.closeRouteModal = () => document.getElementById('routeModal').style.display = 'none';
         window.openFuelModal = () => document.getElementById('fuelModal').style.display = 'flex';
         window.closeFuelModal = () => document.getElementById('fuelModal').style.display = 'none';
-        window.openChartModal = () => document.getElementById('chartModal').style.display = 'flex';
+        window.openChartModal = () => {
+            document.getElementById('chartModal').style.display = 'flex';
+            window.loadDashboard(); // Refresh chart data on open
+        };
         window.closeChartModal = () => document.getElementById('chartModal').style.display = 'none';
         window.toggleTheme = () => document.body.classList.toggle('dark-mode');
         window.updateDriverProfile = () => {
@@ -271,13 +304,13 @@
         window.submitFuel = async () => {
             const amt = document.getElementById('fuelAmount').value;
             const ltr = document.getElementById('fuelLiters').value;
-            if(!amt || !ltr) return alert("Error");
+            if(!amt || !ltr) return alert("Fill all fields");
             await push(ref(db, `fuelLogs`), {
                 driver: document.getElementById('driverPicker').value,
                 amount: parseFloat(amt), liters: parseFloat(ltr),
                 date: new Date().toISOString().split('T')[0]
             });
-            alert("Logged!");
+            alert("Fuel Logged!");
             closeFuelModal();
         };
     </script>
