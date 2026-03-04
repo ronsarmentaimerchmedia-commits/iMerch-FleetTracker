@@ -1,6 +1,7 @@
 {
-  "name": "CarTracker PH",
+  "name": "CarTracker Philippines",
   "short_name": "CarTracker",
+  "description": "Real-time car tracking for Metro Manila",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -9,7 +10,8 @@
     {
       "src": "icon.jpg",
       "sizes": "1024x1024",
-      "type": "image/jpeg"
+      "type": "image/jpeg",
+      "purpose": "any maskable"
     }
   ]
 }
