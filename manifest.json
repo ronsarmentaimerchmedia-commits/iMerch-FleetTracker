@@ -4,7 +4,7 @@
   "description": "Real-time car tracking for Metro Manila",
   "start_url": "index.html",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#007AFF",
   "theme_color": "#007AFF",
   "icons": [
     {
