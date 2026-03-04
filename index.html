@@ -8,29 +8,34 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body, html, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #f0f0f0; }
-        .menu { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1000; background: white; padding: 15px; border-radius: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 280px; border: 2px solid #007AFF; transition: all 0.3s; }
         
+        /* LOGO HEADER STYLE */
+        .logo-header { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1001; background: rgba(255, 255, 255, 0.9); padding: 10px 20px; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px; border: 1px solid #007AFF; backdrop-filter: blur(5px); }
+        .logo-icon { width: 30px; height: 30px; background: #007AFF; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 18px; position: relative; }
+        .logo-pulse { position: absolute; width: 100%; height: 100%; background: #007AFF; border-radius: 8px; opacity: 0.5; animation: pulse-blue 2s infinite; }
+        .logo-text { font-family: 'Segoe UI', sans-serif; font-weight: 800; font-size: 18px; color: #333; letter-spacing: -0.5px; }
+        .logo-text span { color: #007AFF; }
+        
+        @keyframes pulse-blue { 0% { transform: scale(1); opacity: 0.5; } 100% { transform: scale(1.6); opacity: 0; } }
+
+        /* MENU STYLE */
+        .menu { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1000; background: white; padding: 15px; border-radius: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 280px; border: 2px solid #007AFF; transition: all 0.3s; }
         .driver-container { display: flex; align-items: center; gap: 12px; width: 100%; padding-bottom: 10px; border-bottom: 1px solid #eee; margin-bottom: 5px; position: relative; }
         .profile-img-wrapper { position: relative; }
         .profile-img { width: 52px; height: 52px; border-radius: 50%; border: 2px solid #007AFF; object-fit: cover; background: #eee; }
-        
         .status-dot { position: absolute; bottom: 2px; right: 2px; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; background: #8e8e93; }
         .status-moving { background: #34C759; box-shadow: 0 0 8px #34C759; }
         .status-parked { background: #FF3B30; }
-
         .vehicle-switcher { display: flex; width: 100%; gap: 5px; margin-bottom: 5px; }
         .v-btn { flex: 1; padding: 8px; font-size: 12px; border-radius: 8px; border: 1px solid #007AFF; background: white; color: #007AFF; cursor: pointer; transition: 0.3s; font-weight: bold; }
         .v-btn.active { background: #007AFF; color: white; }
-
         .history-controls { width: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 2px dashed #eee; }
         .history-row { display: flex; gap: 5px; width: 100%; }
         input[type="date"] { padding: 8px; border-radius: 8px; border: 1px solid #ddd; flex-grow: 1; font-family: inherit; }
-        
         button { padding: 12px 20px; border-radius: 12px; border: none; background: #007AFF; color: white; font-weight: bold; width: 100%; cursor: pointer; transition: 0.2s; }
         .btn-history { background: #5856D6; padding: 8px; font-size: 14px; }
         .btn-export { background: #34C759; display: none; margin-top: 5px; }
         #btn.tracking-on { background: #FF3B30; }
-
         .stats-row { display: flex; gap: 10px; align-items: center; margin: 5px 0; width: 100%; justify-content: space-around; }
         .speed-display { font-size: 28px; font-weight: bold; color: #007AFF; text-align: center; }
         .status { font-size: 12px; color: #666; text-align: center; width: 100%; }
@@ -38,7 +43,16 @@
     </style>
 </head>
 <body>
+    <div class="logo-header">
+        <div class="logo-icon">
+            <div class="logo-pulse"></div>
+            i
+        </div>
+        <div class="logo-text">iMerch<span>Fleet</span></div>
+    </div>
+
     <div id="map"></div>
+    
     <div class="menu" id="mainMenu">
         <select class="driver-selector" id="driverPicker" onchange="updateDriverProfile()" style="width:100%; padding:8px; border-radius:10px; margin-bottom:5px;">
             <option value="ron">Ron Sarmenta</option>
@@ -108,72 +122,45 @@
         let isHistoryMode = false;
         let isTracking = false;
         let watchID = null;
-        
-        // Variables for distance calculation
         let lastLat = null;
         let lastLng = null;
         let totalDistance = 0;
 
-        // Helper: Calculate Distance between two points in KM
         function getDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Radius of the earth in km
+            const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
         }
 
-        // --- TRACKING LOGIC ---
         window.toggleTracking = async () => {
             const btn = document.getElementById('btn');
             const driverKey = document.getElementById('driverPicker').value;
-
             if (!isTracking) {
                 if (navigator.geolocation) {
                     isTracking = true;
                     btn.innerText = "🛑 Stop Tracking";
                     btn.classList.add('tracking-on');
-                    
-                    // Reset distance on new session
-                    totalDistance = 0;
-                    lastLat = null;
-                    lastLng = null;
-
+                    totalDistance = 0; lastLat = null; lastLng = null;
                     watchID = navigator.geolocation.watchPosition(async (pos) => {
                         const lat = pos.coords.latitude;
                         const lng = pos.coords.longitude;
                         const speed = Math.round((pos.coords.speed || 0) * 3.6);
-                        
-                        // Calculate Distance
                         if (lastLat !== null && lastLng !== null) {
                             const d = getDistance(lastLat, lastLng, lat, lng);
-                            if (d > 0.005) { // Only add if moved more than 5 meters to avoid jitter
-                                totalDistance += d;
-                            }
+                            if (d > 0.005) totalDistance += d;
                         }
-                        lastLat = lat;
-                        lastLng = lng;
-
-                        // Get Real-time Battery
+                        lastLat = lat; lastLng = lng;
                         let batteryLevel = "--";
                         if (navigator.getBattery) {
                             const battery = await navigator.getBattery();
                             batteryLevel = Math.round(battery.level * 100);
                         }
-
-                        // Update Firebase
                         update(ref(db, 'cars/car1'), {
-                            lat: lat,
-                            lng: lng,
-                            speed: speed,
-                            dist: totalDistance.toFixed(2),
-                            battery: batteryLevel,
-                            driver: driverKey,
-                            lastUpdated: new Date().getTime()
+                            lat: lat, lng: lng, speed: speed, dist: totalDistance.toFixed(2),
+                            battery: batteryLevel, driver: driverKey, lastUpdated: new Date().getTime()
                         });
-
                     }, (err) => console.error(err), { enableHighAccuracy: true });
                 }
             } else {
@@ -188,8 +175,7 @@
             const picker = document.getElementById('driverPicker');
             const val = picker.value;
             const name = picker.options[picker.selectedIndex].text;
-            const imgPath = val === 'ron' ? "Ron Sarmenta.jpg" : val + ".jpg";
-            document.getElementById('profilePic').src = imgPath;
+            document.getElementById('profilePic').src = val === 'ron' ? "Ron Sarmenta.jpg" : val + ".jpg";
             document.getElementById('displayDriver').innerText = name;
             document.getElementById('displayUser').innerText = "@" + val + "_imerch";
         };
@@ -229,13 +215,11 @@
                 if(snap.exists() && !isHistoryMode){
                     const d = snap.val();
                     carMarker.setLatLng([d.lat, d.lng]);
-                    
                     const speed = d.speed || 0;
                     document.getElementById('speed').innerText = speed;
                     document.getElementById('distance').innerText = "🏁 " + (d.dist || "0.00") + " km";
                     document.getElementById('battery').innerText = "🔋 " + (d.battery || "--") + "%";
                     document.getElementById('lastSeen').innerText = "Last Seen: " + new Date().toLocaleTimeString('en-PH');
-
                     const dot = document.getElementById('statusDot');
                     dot.className = speed > 2 ? "status-dot status-moving" : "status-dot status-parked";
                 }
