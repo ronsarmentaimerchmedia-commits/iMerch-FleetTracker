@@ -43,7 +43,7 @@
         }
 
         .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
-        .export-btn { background: #34C759; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .export-btn { background: #34C759; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 5px;}
         .fuel-log-btn { background: var(--accent) !important; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; width: 100%; cursor: pointer; }
         
         #fuelModal, #chartModal, #routeModal {
@@ -54,7 +54,6 @@
         select, input { background: var(--card-bg); color: var(--text); border: 1px solid #ddd; padding: 12px; border-radius: 12px; width: 100%; }
         .profile-img { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #007AFF; }
         
-        /* Chart specific style */
         .chart-container { background: var(--card-bg); border-radius: 15px; padding: 10px; margin: 10px 0; }
     </style>
 </head>
@@ -124,6 +123,7 @@
                 <canvas id="fuelChart"></canvas>
             </div>
             <button class="export-btn" onclick="exportDataToExcel()">📂 Export All Logs (Excel)</button>
+            <button class="export-btn" style="background:#FF3B30;" onclick="adminClearLogs()">🗑️ Clear All Logs (Admin)</button>
             <button class="export-btn" style="background:#8E8E93;" onclick="closeChartModal()">Close</button>
         </div>
     </div>
@@ -141,7 +141,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, update, push, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, update, push, get, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = { databaseURL: "https://cartracker-1df45-default-rtdb.firebaseio.com/" };
         const app = initializeApp(firebaseConfig);
@@ -154,21 +154,42 @@
         let fuelChartInstance = null;
         document.getElementById('histDate').value = new Date().toISOString().split('T')[0];
 
-        // --- DASHBOARD CHART LOGIC ---
+        // --- ADMIN CLEAR LOGS ---
+        window.adminClearLogs = async () => {
+            const pass = prompt("Enter Admin Password to CLEAR ALL DATA:");
+            if (pass === "admin123") {
+                if (confirm("Are you sure? This will permanently delete all fuel logs and route history.")) {
+                    try {
+                        await remove(ref(db, 'fuelLogs'));
+                        await remove(ref(db, 'history'));
+                        alert("Database cleared successfully.");
+                        location.reload(); 
+                    } catch (e) {
+                        alert("Error clearing database.");
+                    }
+                }
+            } else if (pass !== null) {
+                alert("Incorrect Password.");
+            }
+        };
+
+        // --- DASHBOARD CHART ---
         window.loadDashboard = async () => {
             const fuelSnap = await get(ref(db, `fuelLogs`));
-            if(!fuelSnap.exists()) return;
+            const ctx = document.getElementById('fuelChart').getContext('2d');
+            if(fuelChartInstance) fuelChartInstance.destroy();
+
+            if(!fuelSnap.exists()) {
+                // Draw empty chart if no data
+                fuelChartInstance = new Chart(ctx, { type: 'bar', data: { labels: ['No Data'], datasets: [{ data: [0] }] } });
+                return;
+            }
 
             const logs = Object.values(fuelSnap.val());
             const driverTotals = {};
-
             logs.forEach(log => {
                 driverTotals[log.driver] = (driverTotals[log.driver] || 0) + log.amount;
             });
-
-            const ctx = document.getElementById('fuelChart').getContext('2d');
-            
-            if(fuelChartInstance) fuelChartInstance.destroy();
 
             fuelChartInstance = new Chart(ctx, {
                 type: 'bar',
@@ -250,7 +271,6 @@
             if(historyLayer) map.removeLayer(historyLayer);
             historyLayer = L.polyline(coords, { color: '#FF9500', weight: 5 }).addTo(map);
             map.fitBounds(historyLayer.getBounds());
-            document.getElementById('routeInfo').innerHTML = `Driver: ${driver.toUpperCase()} | Dist: ${dist} km`;
             document.getElementById('routeStatus').style.display = 'block';
             closeRouteModal();
         };
@@ -285,14 +305,14 @@
             }
         };
 
-        // Window Helper Functions
+        // UI HELPERS
         window.openRouteModal = () => document.getElementById('routeModal').style.display = 'flex';
         window.closeRouteModal = () => document.getElementById('routeModal').style.display = 'none';
         window.openFuelModal = () => document.getElementById('fuelModal').style.display = 'flex';
         window.closeFuelModal = () => document.getElementById('fuelModal').style.display = 'none';
         window.openChartModal = () => {
             document.getElementById('chartModal').style.display = 'flex';
-            window.loadDashboard(); // Refresh chart data on open
+            window.loadDashboard();
         };
         window.closeChartModal = () => document.getElementById('chartModal').style.display = 'none';
         window.toggleTheme = () => document.body.classList.toggle('dark-mode');
