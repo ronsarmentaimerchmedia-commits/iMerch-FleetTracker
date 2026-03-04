@@ -19,9 +19,9 @@
         .battery-display { font-size: 18px; font-weight: bold; color: #444; }
         .status { font-size: 13px; color: #444; text-align: center; font-weight: 500; }
         
-        /* Geofence Alert Style */
+        /* Alert Styles */
         .outside-fence { border: 3px solid #FF3B30 !important; background: #ffebeb !important; }
-        .outside-text { color: #FF3B30 !important; font-weight: bold; animation: blink 1s infinite; }
+        .outside-text, .low-battery { color: #FF3B30 !important; font-weight: bold; animation: blink 1s infinite; }
         @keyframes blink { 50% { opacity: 0; } }
     </style>
 </head>
@@ -45,9 +45,8 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
         
-        // GEOFENCE SETTINGS
-        const fenceCenter = [14.5794, 121.0359]; // Mandaluyong City Hall
-        const fenceRadius = 1000; // 1000 meters (1km)
+        const fenceCenter = [14.5794, 121.0359]; 
+        const fenceRadius = 1000; 
 
         const streetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' });
         const satelliteMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
@@ -79,7 +78,17 @@
                 map.setView(carPos);
 
                 document.getElementById('speed').innerText = (speed || 0) + " km/h";
-                document.getElementById('battery').innerText = "🔋 " + (battery || "--") + "%";
+                
+                // Battery UI + Alert Logic
+                const batteryLabel = document.getElementById('battery');
+                const batVal = battery || 0;
+                batteryLabel.innerText = (batVal <= 20 ? "🪫 " : "🔋 ") + batVal + "%";
+                
+                if (batVal <= 20) {
+                    batteryLabel.className = "battery-display low-battery";
+                } else {
+                    batteryLabel.className = "battery-display";
+                }
                 
                 // GEOFENCE LOGIC
                 const distance = map.distance(carPos, L.latLng(fenceCenter));
@@ -110,23 +119,22 @@
                 btn.style.background = "#007AFF";
                 document.getElementById('status').innerText = "Tracking Stopped";
             } else {
-                // Initial Battery Fetch
-                let batteryLevel = 0;
-                if (navigator.getBattery) {
-                    const bat = await navigator.getBattery();
-                    batteryLevel = Math.round(bat.level * 100);
-                }
-
-                watchID = navigator.geolocation.watchPosition(pos => {
+                watchID = navigator.geolocation.watchPosition(async pos => {
                     const lat = pos.coords.latitude;
                     const lng = pos.coords.longitude;
                     let speedKMH = Math.round((pos.coords.speed || 0) * 3.6); 
+
+                    let batteryLevel = 0;
+                    if (navigator.getBattery) {
+                        const bat = await navigator.getBattery();
+                        batteryLevel = Math.round(bat.level * 100);
+                    }
 
                     set(ref(db, 'cars/car1'), { 
                         lat: lat, 
                         lng: lng,
                         speed: speedKMH,
-                        battery: batteryLevel, // Sending battery level
+                        battery: batteryLevel,
                         lastUpdate: new Date().toISOString()
                     });
                 }, err => alert("Enable GPS!"), { enableHighAccuracy: true });
