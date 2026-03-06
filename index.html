@@ -33,7 +33,6 @@
         
         body, html, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #000; overflow: hidden; font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; transition: transform 0.5s ease-in-out; }
         
-        /* Navigation Mode Tilt */
         .navigation-mode #map {
             transform: perspective(1000px) rotateX(45deg) scale(1.2);
             transform-origin: bottom;
@@ -50,13 +49,13 @@
         .logo-text { font-weight: 700; font-size: 16px; color: var(--text); letter-spacing: -0.5px; }
         .logo-text span { color: #007AFF; }
 
-        /* Search Bar Styles */
+        /* Updated Search Bar for Mobile Accessibility */
         .search-container {
-            position: absolute; top: 85px; left: 50%; transform: translateX(-50%);
-            z-index: 1001; width: 88%; max-width: 360px; display: flex; gap: 8px;
+            position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
+            z-index: 1001; width: 85%; max-width: 320px; display: flex; gap: 6px;
         }
         .search-input { 
-            flex: 1; padding: 12px 18px; border-radius: 15px; border: 1px solid var(--glass-border); 
+            flex: 1; padding: 10px 15px; border-radius: 12px; border: 1px solid var(--glass-border); 
             background: var(--bg); color: var(--text); outline: none; box-shadow: var(--shadow);
             backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-size: 14px;
         }
@@ -125,7 +124,7 @@
 
     <div class="search-container">
         <input type="text" id="destinationSearch" class="search-input" placeholder="Where to?">
-        <button class="control-btn" onclick="searchLocation()" style="width:48px; height:48px;">🔍</button>
+        <button class="control-btn" onclick="searchLocation()" style="width:40px; height:40px;">🔍</button>
     </div>
 
     <div class="side-controls">
@@ -149,7 +148,7 @@
             </div>
         </div>
 
-        <select id="driverPicker" onchange="updateDriverProfile()" style="margin: 12px 0; border: 1px solid rgba(0,122,255,0.2);">
+        <select id="driverPicker" onchange="updateDriverProfile()" style="margin: 8px 0 15px 0; border: 1px solid rgba(0,122,255,0.2);">
             <option value="ron">Ron Sarmenta</option>
             <option value="mico">Mico Balmaceda</option>
             <option value="darwin">Darwin Pengson</option>
@@ -183,44 +182,9 @@
         </div>
     </div>
 
-    <div id="chartModal">
-        <div class="modal-content">
-            <h3 style="margin-top:0; font-size:20px;">📊 Fleet Fuel Analysis</h3>
-            <canvas id="fuelChart"></canvas>
-            <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
-                <button class="main-btn" onclick="exportFuelCSV()" style="background:#34C759;">📥 Download CSV</button>
-                <button class="main-btn" onclick="adminClearLogs()" style="background:#FF3B30;">🗑️ Clear Logs</button>
-                <button class="main-btn" style="background:#8e8e93;" onclick="closeChartModal()">Close</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="routeModal">
-        <div class="modal-content">
-            <h3 style="margin-top:0;">🗺️ View History</h3>
-            <select id="histDriver">
-                <option value="ron">Ron Sarmenta</option>
-                <option value="mico">Mico Balmaceda</option>
-                <option value="darwin">Darwin Pengson</option>
-                <option value="eljhay">Eljhay Ramos</option>
-                <option value="vergel">Vergel Apurillo</option>
-            </select>
-            <input type="date" id="histDate">
-            <button class="main-btn" onclick="loadRouteHistory()">Analyze Route</button>
-            <button class="main-btn" onclick="secureClearHistory()" style="background:#8e8e93; margin-top:8px;">Clear Map</button>
-            <button onclick="closeRouteModal()" style="border:none; background:none; margin-top:15px; width:100%; color:#007AFF; font-weight:600;">Dismiss</button>
-        </div>
-    </div>
-    
-    <div id="fuelModal">
-        <div class="modal-content">
-            <h3 style="margin-top:0;">⛽ Fuel Entry</h3>
-            <input type="number" id="fuelAmount" placeholder="PHP Amount">
-            <input type="number" id="fuelLiters" placeholder="Liters">
-            <button class="main-btn" onclick="submitFuel()">Save Log</button>
-            <button onclick="closeFuelModal()" style="border:none; background:none; margin-top:15px; width:100%; color:#FF3B30; font-weight:600;">Cancel</button>
-        </div>
-    </div>
+    <div id="chartModal"><div class="modal-content"><h3 style="margin-top:0; font-size:20px;">📊 Fleet Fuel Analysis</h3><canvas id="fuelChart"></canvas><div style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;"><button class="main-btn" onclick="exportFuelCSV()" style="background:#34C759;">📥 Download CSV</button><button class="main-btn" onclick="adminClearLogs()" style="background:#FF3B30;">🗑️ Clear Logs</button><button class="main-btn" style="background:#8e8e93;" onclick="closeChartModal()">Close</button></div></div></div>
+    <div id="routeModal"><div class="modal-content"><h3 style="margin-top:0;">🗺️ View History</h3><select id="histDriver"><option value="ron">Ron Sarmenta</option><option value="mico">Mico Balmaceda</option><option value="darwin">Darwin Pengson</option><option value="eljhay">Eljhay Ramos</option><option value="vergel">Vergel Apurillo</option></select><input type="date" id="histDate"><button class="main-btn" onclick="loadRouteHistory()">Analyze Route</button><button class="main-btn" onclick="secureClearHistory()" style="background:#8e8e93; margin-top:8px;">Clear Map</button><button onclick="closeRouteModal()" style="border:none; background:none; margin-top:15px; width:100%; color:#007AFF; font-weight:600;">Dismiss</button></div></div>
+    <div id="fuelModal"><div class="modal-content"><h3 style="margin-top:0;">⛽ Fuel Entry</h3><input type="number" id="fuelAmount" placeholder="PHP Amount"><input type="number" id="fuelLiters" placeholder="Liters"><button class="main-btn" onclick="submitFuel()">Save Log</button><button onclick="closeFuelModal()" style="border:none; background:none; margin-top:15px; width:100%; color:#FF3B30; font-weight:600;">Cancel</button></div></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module">
@@ -516,6 +480,7 @@
             if(data) {
                 document.getElementById('statDist').innerText = data.distance || "0.00";
                 document.getElementById('statEff').innerText = data.lastEfficiency || "0.0";
+                document.getElementById('lastUpdateTime').innerText = data.lastUpdated || "Live";
                 if(data.lat && data.lng) map.setView([data.lat, data.lng], 15);
             }
             totalDistance = 0; lastPosition = null;
