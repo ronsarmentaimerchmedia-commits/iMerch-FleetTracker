@@ -12,7 +12,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --bg: rgba(255, 255, 255, 0.95); --text: #333; --border: #007AFF; --card-bg: #ffffff; --accent: #FF9500; --secondary-text: #8e8e93; --danger: #FF3B30; }
+        :root { --bg: rgba(255, 255, 255, 0.95); --text: #333; --border: #007AFF; --card-bg: #ffffff; --accent: #FF9500; --secondary-text: #8e8e93; }
         .dark-mode { --bg: rgba(28, 28, 30, 0.95); --text: #ffffff; --border: #0A84FF; --card-bg: #1c1c1e; }
         
         body, html, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #f0f0f0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
@@ -27,20 +27,6 @@
         .logo-text { font-weight: 800; font-size: 18px; color: var(--text); }
         .logo-text span { color: #007AFF; }
 
-        .menu { 
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
-            z-index: 1000; background: var(--bg); padding: 20px; border-radius: 30px; 
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2); display: flex; flex-direction: column; 
-            width: 92%; max-width: 380px; border: 1px solid rgba(0,122,255,0.2); color: var(--text);
-        }
-
-        .vehicle-toggle {
-            display: grid; grid-template-columns: 1fr 1fr; background: #eee;
-            border-radius: 12px; padding: 4px; margin-bottom: 12px;
-        }
-        .v-btn { padding: 8px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; background: transparent; transition: 0.3s; }
-        .v-btn.active { background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); color: #007AFF; }
-
         .stats-container {
             background: var(--card-bg); border-radius: 20px; padding: 15px; margin: 10px 0;
             border: 1px solid #e5e5ea; display: flex; justify-content: space-between;
@@ -48,17 +34,38 @@
         }
         .speed-display { text-align: center; flex: 1; border-right: 1px solid #eee; }
         .speed-val { font-size: 28px; font-weight: 800; color: #007AFF; display: block; }
+        .speed-unit { font-size: 12px; color: #007AFF; font-weight: bold; }
         
+        .other-stats { flex: 1; padding-left: 15px; display: flex; flex-direction: column; gap: 5px; }
+        .stat-item { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text); }
+
+        .section-label { font-size: 11px; font-weight: 800; color: var(--secondary-text); text-transform: uppercase; letter-spacing: 1px; margin: 10px 0 5px 5px; }
+
         .side-controls { position: absolute; top: 20px; right: 20px; z-index: 1002; display: flex; flex-direction: column; gap: 10px; }
-        .control-btn { background: var(--bg); border: 1.5px solid var(--border); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .control-btn { background: var(--bg); border: 1.5px solid var(--border); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .control-btn.active { background: #007AFF; color: white; }
+
+        .menu { 
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
+            z-index: 1000; background: var(--bg); padding: 20px; border-radius: 30px; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2); display: flex; flex-direction: column; 
+            width: 92%; max-width: 380px; border: 1px solid rgba(0,122,255,0.2); color: var(--text);
+        }
+
+        .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .type-btn { flex: 1; padding: 10px; border-radius: 12px; border: 1px solid #ddd; background: #f2f2f7; color: var(--text); font-size: 12px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .type-btn.active { background: var(--border); color: white; border-color: var(--border); }
         
-        .main-btn { padding: 16px; border-radius: 18px; background: #007AFF; color: white; font-weight: bold; border: none; cursor: pointer; font-size: 16px; width: 100%; }
-        .profile-section { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-        .profile-img { width: 60px; height: 60px; border-radius: 50%; border: 2px solid #007AFF; object-fit: cover; background: #eee; }
-        
+        .main-btn { padding: 16px; border-radius: 18px; background: #007AFF; color: white; font-weight: bold; border: none; cursor: pointer; font-size: 16px; box-shadow: 0 4px 12px rgba(0,122,255,0.3); width: 100%; }
+        .fuel-btn { background: var(--accent); color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+
+        .profile-section { display: flex; align-items: center; gap: 12px; margin-bottom: 5px; }
+        .profile-img { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #007AFF; object-fit: cover; }
+        .update-time { font-size: 11px; color: var(--secondary-text); }
+
         .modal-content { background: var(--bg); padding: 20px; border-radius: 20px; width: 85%; max-width: 400px; color: var(--text); position: relative; }
-        #chartModal, #fuelModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; }
-        input, select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin: 5px 0; }
+        #chartModal, #routeModal, #fuelModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; }
+        input, select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin: 5px 0; box-sizing: border-box; }
     </style>
 </head>
 <body class="light-mode">
@@ -68,137 +75,356 @@
     </div>
 
     <div class="side-controls">
-        <div class="control-btn" onclick="toggleTheme()">🌓</div>
-        <div class="control-btn" onclick="toggleMapStyle()">🛰️</div>
+        <div class="control-btn" onclick="toggleTheme()" title="Toggle Dark Mode">🌓</div>
+        <div class="control-btn" id="followBtn" onclick="toggleFollowMe()" title="Follow Me">📍</div>
+        <div class="control-btn" onclick="toggleMapStyle()" title="Satellite View">🛰️</div>
+        <div class="control-btn" onclick="openRouteModal()" title="History">🗺️</div>
     </div>
 
     <div id="map"></div>
     
-    <div class="menu" id="mainMenu">
+    <div class="menu">
         <div class="profile-section">
             <img id="profilePic" src="Ron Sarmenta.jpg" class="profile-img" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3135/3135715.png'">
             <div>
                 <b id="displayDriver" style="font-size: 18px;">Ron Sarmenta</b><br>
-                <span style="font-size: 11px; color: var(--secondary-text);">Unit: <span id="currentVehicle">Car</span></span><br>
-                <span style="font-size: 11px; color: var(--accent);">Seen: <span id="lastSeenStatus">--:--</span></span>
+                <span class="update-time">Last Seen: <span id="lastUpdateTime">--:--:--</span></span>
             </div>
         </div>
 
-        <select id="driverPicker" onchange="updateDriverProfile()" style="margin-bottom: 10px;">
-            <option value="Ron Sarmenta">Ron Sarmenta</option>
-            <option value="Mico">Mico Balmaceda</option>
-            <option value="Darwin">Darwin Pengson</option>
-            <option value="Vergel">Vergel Appurillor</option>
-            <option value="Eljhay">Eljhay Ramos</option>
+        <select id="driverPicker" onchange="updateDriverProfile()" style="margin: 10px 0;">
+            <option value="ron">Ron Sarmenta</option>
+            <option value="mico">Mico Balmaceda</option>
+            <option value="darwin">Darwin Pengson</option>
+            <option value="eljhay">Eljhay Ramos</option>
+            <option value="vergel">Vergel Archer</option>
         </select>
-
-        <div class="vehicle-toggle">
-            <button id="vCar" class="v-btn active" onclick="setVehicle('Car')">🚗 Car</button>
-            <button id="vMoto" class="v-btn" onclick="setVehicle('Motorcycle')">🏍️ Moto</button>
-        </div>
 
         <div class="stats-container">
             <div class="speed-display">
                 <span id="liveSpeed" class="speed-val">0</span>
-                <span style="font-size: 12px; font-weight: bold; color: #007AFF;">km/h</span>
+                <span class="speed-unit">km/h</span>
             </div>
-            <div style="flex: 1.5; padding-left: 15px; font-size: 13px; font-weight: 600;">
-                <div>🔋 <span id="statBatt">--</span>%</div>
-                <div>🏁 <span id="statDist">0.00</span> km</div>
+            <div class="other-stats">
+                <div class="stat-item">🔋 <span id="statBatt">--</span>%</div>
+                <div class="stat-item">🏁 <span id="statDist">0.00</span> km</div>
+                <div class="stat-item">⛽ <span id="statEff">0.0</span> km/L</div>
             </div>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-bottom: 12px;">
+            <button id="typeCar" class="type-btn active" onclick="setVehicleType('car')">🚗 Auto</button>
+            <button id="typeBike" class="type-btn" onclick="setVehicleType('bike')">🏍️ Motor</button>
         </div>
 
         <button onclick="toggleTracking()" id="btn" class="main-btn">📡 Start Tracking</button>
         
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-            <button onclick="openFuelModal()" class="main-btn" style="background:var(--accent); padding:10px; font-size:12px;">⛽ Fuel Log</button>
-            <button onclick="checkAdminPass()" class="main-btn" style="background:#5856D6; padding:10px; font-size:12px;">📊 Report</button>
+        <div class="section-label">History Management</div>
+        <div class="action-grid">
+            <button onclick="openFuelModal()" class="fuel-btn">⛽ Fuel Entry</button>
+            <button onclick="checkAdminPass()" class="fuel-btn" style="background:#5856D6;">📊 Fleet Report</button>
         </div>
     </div>
+
+    <div id="chartModal">
+        <div class="modal-content">
+            <h3>📊 Fleet Fuel Analysis</h3>
+            <canvas id="fuelChart"></canvas>
+            <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">
+                <button class="main-btn" onclick="exportFuelCSV()" style="background:#34C759;">📥 Download CSV (Excel)</button>
+                <button class="main-btn" onclick="adminClearLogs()" style="background:#FF3B30;">🗑️ Clear Logs</button>
+                <button class="main-btn" style="background:gray;" onclick="closeChartModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="routeModal">
+        <div class="modal-content">
+            <h3>🗺️ View History</h3>
+            <select id="histDriver">
+                <option value="ron">Ron Sarmenta</option>
+                <option value="mico">Mico Balmaceda</option>
+                <option value="darwin">Darwin Pengson</option>
+                <option value="eljhay">Eljhay Ramos</option>
+                <option value="vergel">Vergel Archer</option>
+            </select>
+            <input type="date" id="histDate">
+            <button class="main-btn" onclick="loadRouteHistory()">Analyze Route</button>
+            <button class="main-btn" onclick="clearHistoryFromMap()" style="background:gray; margin-top:5px;">Clear Map</button>
+            <button onclick="closeRouteModal()" style="border:none; background:none; margin-top:10px; width:100%;">Cancel</button>
+        </div>
+    </div>
+    
+    <div id="fuelModal"><div class="modal-content"><h3>⛽ Fuel Entry</h3><input type="number" id="fuelAmount" placeholder="PHP Amount"><input type="number" id="fuelLiters" placeholder="Liters"><button class="main-btn" onclick="submitFuel()">Save Log</button><button onclick="closeFuelModal()" style="border:none; background:none; margin-top:10px; width:100%;">Cancel</button></div></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, update, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, update, push, get, onValue, remove, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = { databaseURL: "https://cartracker-1df45-default-rtdb.firebaseio.com/" };
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        const map = L.map('map', { zoomControl: false }).setView([14.5794, 121.0359], 15);
-        const streetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        const streetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
         const satelliteMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
-
-        let myUID = localStorage.getItem('fleetlink_uid') || 'unit-' + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('fleetlink_uid', myUID);
+        const map = L.map('map', { zoomControl: false, layers: [streetMap] }).setView([14.5794, 121.0359], 15);
         
-        let marker = null;
-        window.currentVehicleType = "Car";
+        let currentMapStyle = 'street';
+        let vehicleMarkers = {};
+        let selectedType = 'car';
+        let fuelChartInstance = null;
+        let followMe = false;
+        let routePolyline = null;
 
-        const carIcon = L.divIcon({ html: '🚗', className: 'map-icon', iconSize: [30, 30] });
-        const motoIcon = L.divIcon({ html: '🏍️', className: 'map-icon', iconSize: [30, 30] });
+        let totalDistance = 0;
+        let lastPosition = null;
+        let deviceBattery = "--";
 
-        window.setVehicle = (type) => {
-            window.currentVehicleType = type;
-            document.getElementById('currentVehicle').innerText = type;
-            document.getElementById('vCar').classList.toggle('active', type === 'Car');
-            document.getElementById('vMoto').classList.toggle('active', type === 'Motorcycle');
-            if(marker) marker.setIcon(type === 'Car' ? carIcon : motoIcon);
+        const carIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/741/741407.png', iconSize: [40, 40], iconAnchor: [20, 20] });
+        const bikeIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/2965/2965319.png', iconSize: [40, 40], iconAnchor: [20, 20] });
+
+        window.toggleFollowMe = () => {
+            followMe = !followMe;
+            const fBtn = document.getElementById('followBtn');
+            fBtn.classList.toggle('active', followMe);
+            if(followMe && lastPosition) map.panTo([lastPosition.lat, lastPosition.lng]);
         };
 
-        window.updateDriverProfile = () => {
-            const name = document.getElementById('driverPicker').value;
-            document.getElementById('displayDriver').innerText = name;
-            // RESTORED JPG MAPPING
-            const imgMap = {
-                "Ron Sarmenta": "Ron Sarmenta.jpg",
-                "Mico": "mico.jpg",
-                "Darwin": "darwin.jpg",
-                "Vergel": "vergel.jpg",
-                "Eljhay": "eljhay.jpg"
-            };
-            document.getElementById('profilePic').src = imgMap[name] || "Ron Sarmenta.jpg";
+        async function updateBatteryDisplay() {
+            if ('getBattery' in navigator) {
+                const battery = await navigator.getBattery();
+                deviceBattery = Math.round(battery.level * 100);
+                document.getElementById('statBatt').innerText = deviceBattery;
+                battery.onlevelchange = () => {
+                    deviceBattery = Math.round(battery.level * 100);
+                    document.getElementById('statBatt').innerText = deviceBattery;
+                };
+            }
+        }
+        updateBatteryDisplay();
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; 
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        window.toggleMapStyle = (forceStyle) => {
+            if (forceStyle === 'satellite' || (forceStyle === undefined && currentMapStyle === 'street')) {
+                map.removeLayer(streetMap); satelliteMap.addTo(map); currentMapStyle = 'satellite';
+            } else {
+                map.removeLayer(satelliteMap); streetMap.addTo(map); currentMapStyle = 'street';
+            }
         };
 
-        window.toggleTracking = () => {
+        window.setVehicleType = (type) => {
+            selectedType = type;
+            const driver = document.getElementById('driverPicker').value;
+            document.getElementById('typeCar').classList.toggle('active', type === 'car');
+            document.getElementById('typeBike').classList.toggle('active', type === 'bike');
+            update(ref(db, `cars/${driver}`), { type: type });
+        };
+
+        window.submitFuel = async () => {
+            const amount = document.getElementById('fuelAmount').value;
+            const liters = parseFloat(document.getElementById('fuelLiters').value);
+            const driver = document.getElementById('driverPicker').value;
+            const currentDist = parseFloat(document.getElementById('statDist').innerText);
+
+            if(!amount || !liters) return alert("Fill all fields");
+
+            let efficiency = (currentDist > 0 && liters > 0) ? (currentDist / liters).toFixed(2) : 0;
+            document.getElementById('statEff').innerText = efficiency;
+            
+            await push(ref(db, `fuelLogs/${driver}`), {
+                amount: parseFloat(amount),
+                liters: liters,
+                efficiency: efficiency,
+                distanceAtLog: currentDist,
+                date: new Date().toLocaleDateString(),
+                timestamp: Date.now()
+            });
+
+            totalDistance = 0;
+            document.getElementById('statDist').innerText = "0.00";
+            update(ref(db, `cars/${driver}`), { distance: "0.00", lastEfficiency: efficiency });
+
+            alert(`Fuel Logged! Efficiency: ${efficiency} km/L.`);
+            closeFuelModal();
+        };
+
+        // --- RESTORED: FLEET REPORT & CHART LOGIC ---
+        window.checkAdminPass = () => { 
+            if (prompt("Admin Password:") === "1234") window.updateChart(); 
+            else alert("Incorrect Password"); 
+        };
+
+        window.updateChart = async () => {
+            const snapshot = await get(ref(db, 'fuelLogs'));
+            const data = snapshot.val();
+            const labels = [];
+            const amounts = [];
+            if(data) {
+                for(let driver in data) {
+                    labels.push(driver.toUpperCase());
+                    let total = 0;
+                    for(let log in data[driver]) total += data[driver][log].amount;
+                    amounts.push(total);
+                }
+            }
+            const ctx = document.getElementById('fuelChart').getContext('2d');
+            if(fuelChartInstance) fuelChartInstance.destroy();
+            fuelChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{ label: 'Total Spending (PHP)', data: amounts, backgroundColor: '#007AFF' }]
+                },
+                options: { responsive: true, maintainAspectRatio: true }
+            });
+            document.getElementById('chartModal').style.display = 'flex';
+        };
+
+        window.exportFuelCSV = async () => {
+            const snapshot = await get(ref(db, 'fuelLogs'));
+            const data = snapshot.val();
+            if(!data) return alert("No data to export");
+            let exportData = [];
+            for(let driver in data) {
+                for(let logId in data[driver]) {
+                    const log = data[driver][logId];
+                    exportData.push({ 
+                        Driver: driver.toUpperCase(), 
+                        Date: log.date, 
+                        Amount_PHP: log.amount, 
+                        Liters: log.liters,
+                        Efficiency_kmL: log.efficiency || "N/A"
+                    });
+                }
+            }
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Fuel Logs");
+            XLSX.writeFile(wb, `Fleet_Fuel_Report_${new Date().toLocaleDateString()}.csv`);
+        };
+
+        window.adminClearLogs = async () => {
+            if(prompt("Enter Password to Clear Logs:") === "1234") {
+                if(confirm("Are you sure? This cannot be undone.")) {
+                    await remove(ref(db, 'fuelLogs'));
+                    alert("Logs cleared.");
+                    window.updateChart();
+                }
+            } else {
+                alert("Incorrect Password.");
+            }
+        };
+
+        // --- ROUTE HISTORY LOGIC ---
+        window.loadRouteHistory = async () => {
+            const driver = document.getElementById('histDriver').value;
+            const date = document.getElementById('histDate').value;
+            if(!date) return alert("Please select a date");
+            const formattedDate = date.replace(/-/g, "");
+            const snapshot = await get(ref(db, `history/${driver}/${formattedDate}`));
+            const data = snapshot.val();
+            if(!data) return alert("No history found for this date.");
+            const path = Object.values(data).map(point => [point.lat, point.lng]);
+            if(routePolyline) map.removeLayer(routePolyline);
+            routePolyline = L.polyline(path, { color: '#007AFF', weight: 5, opacity: 0.7 }).addTo(map);
+            map.fitBounds(routePolyline.getBounds());
+            alert(`Found ${path.length} points. Route displayed.`);
+            closeRouteModal();
+        };
+
+        window.clearHistoryFromMap = () => {
+            if(routePolyline) { map.removeLayer(routePolyline); routePolyline = null; alert("History cleared."); }
+        };
+
+        onValue(ref(db, 'cars'), (snapshot) => {
+            const data = snapshot.val();
+            if(!data) return;
+            const currentSelected = document.getElementById('driverPicker').value;
+            for(let driver in data) {
+                const { lat, lng, type, lastUpdated, lastEfficiency } = data[driver];
+                const icon = (type === 'bike') ? bikeIcon : carIcon;
+                if(!vehicleMarkers[driver]) {
+                    vehicleMarkers[driver] = L.marker([lat, lng], { icon: icon }).addTo(map).bindPopup(driver.toUpperCase());
+                } else {
+                    vehicleMarkers[driver].setLatLng([lat, lng]).setIcon(icon);
+                }
+                if(driver === currentSelected) {
+                    document.getElementById('lastUpdateTime').innerText = lastUpdated || "--:--:--";
+                    if(lastEfficiency) document.getElementById('statEff').innerText = lastEfficiency;
+                }
+            }
+        });
+
+        window.updateDriverProfile = async () => {
+            const picker = document.getElementById('driverPicker');
+            const driver = picker.value;
+            document.getElementById('profilePic').src = (driver === "ron") ? "Ron Sarmenta.jpg" : driver + ".jpg";
+            document.getElementById('displayDriver').innerText = picker.options[picker.selectedIndex].text;
+            const snapshot = await get(ref(db, `cars/${driver}`));
+            const data = snapshot.val();
+            if(data) {
+                document.getElementById('lastUpdateTime').innerText = data.lastUpdated || "--:--:--";
+                document.getElementById('statDist').innerText = data.distance || "0.00";
+                document.getElementById('statEff').innerText = data.lastEfficiency || "0.0";
+                if(data.lat && data.lng) map.setView([data.lat, data.lng], 15);
+            }
+            totalDistance = 0; lastPosition = null;
+        };
+
+        window.toggleTracking = async () => {
             const btn = document.getElementById('btn');
+            const driver = document.getElementById('driverPicker').value;
             if (!window.isTracking) {
                 window.isTracking = true;
                 btn.innerText = "🛑 Stop Tracking"; btn.style.background = "#FF3B30";
                 window.watchID = navigator.geolocation.watchPosition(pos => {
-                    const { latitude: lat, longitude: lng, speed: rawSpeed } = pos.coords;
-                    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    
-                    // UPDATE TIME STATUS
-                    document.getElementById('lastSeenStatus').innerText = time;
-                    document.getElementById('liveSpeed').innerText = Math.round((rawSpeed || 0) * 3.6);
+                    const lat = pos.coords.latitude; 
+                    const lng = pos.coords.longitude;
+                    const speed = Math.round((pos.coords.speed || 0) * 3.6);
+                    const now = new Date();
+                    const timeStr = now.toLocaleTimeString();
+                    const dateKey = now.toISOString().split('T')[0].replace(/-/g, "");
 
-                    if(!marker) {
-                        marker = L.marker([lat, lng], { icon: window.currentVehicleType === 'Car' ? carIcon : motoIcon }).addTo(map);
-                    } else {
-                        marker.setLatLng([lat, lng]);
+                    if (lastPosition) {
+                        const dist = calculateDistance(lastPosition.lat, lastPosition.lng, lat, lng);
+                        if (dist > 0.01) {
+                            totalDistance += dist;
+                            push(ref(db, `history/${driver}/${dateKey}`), { lat, lng, timestamp: Date.now() });
+                        }
                     }
-                    map.panTo([lat, lng]);
-
-                    update(ref(db, `cars/${myUID}`), { 
-                        lat, lng, 
-                        vehicle: window.currentVehicleType,
-                        lastSeen: time 
-                    });
+                    lastPosition = { lat, lng };
+                    document.getElementById('liveSpeed').innerText = speed;
+                    document.getElementById('statDist').innerText = totalDistance.toFixed(2);
+                    document.getElementById('lastUpdateTime').innerText = timeStr;
+                    update(ref(db, `cars/${driver}`), { lat, lng, speed, distance: totalDistance.toFixed(2), battery: deviceBattery, type: selectedType, lastUpdated: timeStr });
+                    if(followMe) map.panTo([lat, lng]);
                 }, null, { enableHighAccuracy: true });
             } else {
                 window.isTracking = false;
                 navigator.geolocation.clearWatch(window.watchID);
                 btn.innerText = "📡 Start Tracking"; btn.style.background = "#007AFF";
+                lastPosition = null;
             }
         };
 
+        window.openRouteModal = () => document.getElementById('routeModal').style.display = 'flex';
+        window.closeRouteModal = () => document.getElementById('routeModal').style.display = 'none';
+        window.openFuelModal = () => document.getElementById('fuelModal').style.display = 'flex';
+        window.closeFuelModal = () => document.getElementById('fuelModal').style.display = 'none';
+        window.closeChartModal = () => document.getElementById('chartModal').style.display = 'none';
         window.toggleTheme = () => document.body.classList.toggle('dark-mode');
-        window.toggleMapStyle = () => {
-            if (map.hasLayer(streetMap)) { map.removeLayer(streetMap); satelliteMap.addTo(map); }
-            else { map.removeLayer(satelliteMap); streetMap.addTo(map); }
-        };
+        window.updateDriverProfile();
     </script>
 </body>
 </html>
-
