@@ -307,38 +307,58 @@
             }
         };
 
-        // RESTORED: This function now properly saves to Firebase
+        // UPDATED: Fuel Entry Logic with Firebase Integration
         window.submitFuel = async () => {
-            const amount = document.getElementById('fuelAmount').value;
-            const liters = parseFloat(document.getElementById('fuelLiters').value);
+            const amountInput = document.getElementById('fuelAmount');
+            const litersInput = document.getElementById('fuelLiters');
+            const amount = amountInput.value;
+            const liters = parseFloat(litersInput.value);
             const driver = document.getElementById('driverPicker').value;
-            const currentDist = parseFloat(document.getElementById('statDist').innerText);
+            
+            // Get current distance from the display or the variable
+            const currentDist = parseFloat(document.getElementById('statDist').innerText) || 0;
 
-            if(!amount || !liters) return alert("Fill all fields");
+            // Validation
+            if (!amount || !liters || liters <= 0) {
+                alert("Please enter a valid amount and liters.");
+                return;
+            }
 
-            let efficiency = (currentDist > 0 && liters > 0) ? (currentDist / liters).toFixed(2) : 0;
-            document.getElementById('statEff').innerText = efficiency;
+            // Calculate Efficiency (km/L)
+            let efficiency = (currentDist > 0) ? (currentDist / liters).toFixed(2) : 0;
             
             try {
+                // 1. Push detailed log to fuelLogs
                 await push(ref(db, `fuelLogs/${driver}`), {
                     amount: parseFloat(amount),
                     liters: liters,
-                    efficiency: efficiency,
+                    efficiency: parseFloat(efficiency),
                     distanceAtLog: currentDist,
                     date: new Date().toLocaleDateString(),
                     timestamp: Date.now()
                 });
 
-                // Reset distance after logging fuel
-                totalDistance = 0;
-                document.getElementById('statDist').innerText = "0.00";
-                update(ref(db, `cars/${driver}`), { distance: "0.00", lastEfficiency: efficiency });
+                // 2. Update the main vehicle status with the new efficiency
+                await update(ref(db, `cars/${driver}`), { 
+                    lastEfficiency: efficiency,
+                    distance: "0.00" // Reset distance in DB
+                });
 
-                alert(`Fuel Logged! Efficiency: ${efficiency} km/L.`);
+                // 3. Reset local UI and variables
+                totalDistance = 0; 
+                document.getElementById('statDist').innerText = "0.00";
+                document.getElementById('statEff').innerText = efficiency;
+                
+                // Clear inputs and close
+                amountInput.value = "";
+                litersInput.value = "";
+                
+                alert(`Success! Logged ${liters}L. \nEfficiency: ${efficiency} km/L.`);
                 closeFuelModal();
+                
             } catch (error) {
-                console.error("Error saving fuel log:", error);
-                alert("Error saving log. Please check your connection.");
+                console.error("Firebase Error:", error);
+                alert("Failed to save log. Check your internet connection.");
             }
         };
 
@@ -549,3 +569,4 @@
     </script>
 </body>
 </html>
+
