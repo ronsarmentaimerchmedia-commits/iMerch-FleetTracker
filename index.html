@@ -14,8 +14,6 @@
     <style>
         :root { --bg: rgba(255, 255, 255, 0.95); --text: #333; --border: #007AFF; --card-bg: #ffffff; --accent: #FF9500; --secondary-text: #8e8e93; --danger: #FF3B30; }
         .dark-mode { --bg: rgba(28, 28, 30, 0.95); --text: #ffffff; --border: #0A84FF; --card-bg: #1c1c1e; }
-        .geofence-alert { background: var(--danger) !important; color: white !important; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
         
         body, html, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #f0f0f0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         
@@ -29,6 +27,20 @@
         .logo-text { font-weight: 800; font-size: 18px; color: var(--text); }
         .logo-text span { color: #007AFF; }
 
+        .menu { 
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
+            z-index: 1000; background: var(--bg); padding: 20px; border-radius: 30px; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2); display: flex; flex-direction: column; 
+            width: 92%; max-width: 380px; border: 1px solid rgba(0,122,255,0.2); color: var(--text);
+        }
+
+        .vehicle-toggle {
+            display: grid; grid-template-columns: 1fr 1fr; background: #eee;
+            border-radius: 12px; padding: 4px; margin-bottom: 12px;
+        }
+        .v-btn { padding: 8px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; background: transparent; transition: 0.3s; }
+        .v-btn.active { background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); color: #007AFF; }
+
         .stats-container {
             background: var(--card-bg); border-radius: 20px; padding: 15px; margin: 10px 0;
             border: 1px solid #e5e5ea; display: flex; justify-content: space-between;
@@ -36,31 +48,17 @@
         }
         .speed-display { text-align: center; flex: 1; border-right: 1px solid #eee; }
         .speed-val { font-size: 28px; font-weight: 800; color: #007AFF; display: block; }
-        .speed-unit { font-size: 12px; color: #007AFF; font-weight: bold; }
         
-        .other-stats { flex: 1; padding-left: 15px; display: flex; flex-direction: column; gap: 5px; }
-        .stat-item { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text); }
-
         .side-controls { position: absolute; top: 20px; right: 20px; z-index: 1002; display: flex; flex-direction: column; gap: 10px; }
-        .control-btn { background: var(--bg); border: 1.5px solid var(--border); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: 0.3s; }
-        .control-btn.active { background: #007AFF; color: white; }
-        .control-btn.fence-active { border-color: var(--danger); color: var(--danger); }
-
-        .menu { 
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
-            z-index: 1000; background: var(--bg); padding: 20px; border-radius: 30px; 
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2); display: flex; flex-direction: column; 
-            width: 92%; max-width: 380px; border: 1px solid rgba(0,122,255,0.2); color: var(--text);
-            transition: background 0.5s;
-        }
-
-        .main-btn { padding: 16px; border-radius: 18px; background: #007AFF; color: white; font-weight: bold; border: none; cursor: pointer; font-size: 16px; box-shadow: 0 4px 12px rgba(0,122,255,0.3); width: 100%; }
-        .profile-section { display: flex; align-items: center; gap: 12px; margin-bottom: 5px; }
-        .profile-img { width: 55px; height: 55px; border-radius: 50%; border: 2px solid #007AFF; object-fit: cover; background: #eee; }
+        .control-btn { background: var(--bg); border: 1.5px solid var(--border); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         
-        .modal-content { background: var(--bg); padding: 20px; border-radius: 20px; width: 85%; max-width: 400px; color: var(--text); position: relative; max-height: 80vh; overflow-y: auto; }
-        #chartModal, #routeModal, #fuelModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; }
-        input, select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin: 5px 0; box-sizing: border-box; font-size: 14px; }
+        .main-btn { padding: 16px; border-radius: 18px; background: #007AFF; color: white; font-weight: bold; border: none; cursor: pointer; font-size: 16px; width: 100%; }
+        .profile-section { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+        .profile-img { width: 60px; height: 60px; border-radius: 50%; border: 2px solid #007AFF; object-fit: cover; background: #eee; }
+        
+        .modal-content { background: var(--bg); padding: 20px; border-radius: 20px; width: 85%; max-width: 400px; color: var(--text); position: relative; }
+        #chartModal, #fuelModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; }
+        input, select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin: 5px 0; }
     </style>
 </head>
 <body class="light-mode">
@@ -71,10 +69,7 @@
 
     <div class="side-controls">
         <div class="control-btn" onclick="toggleTheme()">🌓</div>
-        <div class="control-btn" id="followBtn" onclick="toggleFollowMe()">📍</div>
-        <div class="control-btn" id="fenceBtn" onclick="toggleGeoFenceMode()" title="Set Geo-fence">🚧</div>
         <div class="control-btn" onclick="toggleMapStyle()">🛰️</div>
-        <div class="control-btn" onclick="openRouteModal()">🗺️</div>
     </div>
 
     <div id="map"></div>
@@ -84,12 +79,12 @@
             <img id="profilePic" src="Ron Sarmenta.jpg" class="profile-img" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3135/3135715.png'">
             <div>
                 <b id="displayDriver" style="font-size: 18px;">Ron Sarmenta</b><br>
-                <span style="font-size: 11px; color: var(--secondary-text);">Status: <span id="fenceStatus">Secure</span></span><br>
-                <span style="font-size: 9px; opacity: 0.7;" id="deviceUIDDisplay">ID: ----</span>
+                <span style="font-size: 11px; color: var(--secondary-text);">Unit: <span id="currentVehicle">Car</span></span><br>
+                <span style="font-size: 11px; color: var(--accent);">Seen: <span id="lastSeenStatus">--:--</span></span>
             </div>
         </div>
 
-        <select id="driverPicker" onchange="updateDriverProfile()">
+        <select id="driverPicker" onchange="updateDriverProfile()" style="margin-bottom: 10px;">
             <option value="Ron Sarmenta">Ron Sarmenta</option>
             <option value="Mico">Mico Balmaceda</option>
             <option value="Darwin">Darwin Pengson</option>
@@ -97,15 +92,19 @@
             <option value="Eljhay">Eljhay Ramos</option>
         </select>
 
+        <div class="vehicle-toggle">
+            <button id="vCar" class="v-btn active" onclick="setVehicle('Car')">🚗 Car</button>
+            <button id="vMoto" class="v-btn" onclick="setVehicle('Motorcycle')">🏍️ Moto</button>
+        </div>
+
         <div class="stats-container">
             <div class="speed-display">
                 <span id="liveSpeed" class="speed-val">0</span>
-                <span class="speed-unit">km/h</span>
+                <span style="font-size: 12px; font-weight: bold; color: #007AFF;">km/h</span>
             </div>
-            <div class="other-stats">
-                <div class="stat-item">🔋 <span id="statBatt">--</span>%</div>
-                <div class="stat-item">🏁 <span id="statDist">0.00</span> km</div>
-                <div class="stat-item">⛽ <span id="statEff">0.0</span> km/L</div>
+            <div style="flex: 1.5; padding-left: 15px; font-size: 13px; font-weight: 600;">
+                <div>🔋 <span id="statBatt">--</span>%</div>
+                <div>🏁 <span id="statDist">0.00</span> km</div>
             </div>
         </div>
 
@@ -113,181 +112,84 @@
         
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
             <button onclick="openFuelModal()" class="main-btn" style="background:var(--accent); padding:10px; font-size:12px;">⛽ Fuel Log</button>
-            <button onclick="checkAdminPass()" class="main-btn" style="background:#5856D6; padding:10px; font-size:12px;">📊 Fleet Report</button>
-        </div>
-    </div>
-
-    <div id="chartModal">
-        <div class="modal-content">
-            <h3>📊 Fleet Fuel Analysis</h3>
-            <canvas id="fuelChart"></canvas>
-            <div style="margin-top:15px; display:flex; flex-direction:column; gap:8px;">
-                <button class="main-btn" onclick="exportFuelCSV()" style="background:#34C759;">📥 Download CSV</button>
-                <button class="main-btn" onclick="adminClearLogs()" style="background:#FF3B30;">🗑️ Clear Logs</button>
-                <button class="main-btn" style="background:gray;" onclick="closeChartModal()">Close</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="routeModal"><div class="modal-content"><h3>🗺️ History</h3><select id="histDriver"><option value="Ron Sarmenta">Ron Sarmenta</option></select><input type="date" id="histDate"><button class="main-btn" onclick="loadRouteHistory()">Analyze</button><button class="main-btn" style="background:gray; margin-top:5px;" onclick="closeRouteModal()">Cancel</button></div></div>
-    
-    <div id="fuelModal">
-        <div class="modal-content">
-            <h3>⛽ Fuel Entry</h3>
-            <input type="number" id="fuelAmount" placeholder="Amount (PHP)">
-            <input type="number" id="fuelLiters" placeholder="Liters">
-            <button class="main-btn" onclick="submitFuel()">Save Log</button>
-            <button class="main-btn" style="background:gray; margin-top:5px;" onclick="closeFuelModal()">Cancel</button>
+            <button onclick="checkAdminPass()" class="main-btn" style="background:#5856D6; padding:10px; font-size:12px;">📊 Report</button>
         </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, update, push, get, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, update, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = { databaseURL: "https://cartracker-1df45-default-rtdb.firebaseio.com/" };
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // --- MAP & GLOBALS ---
         const map = L.map('map', { zoomControl: false }).setView([14.5794, 121.0359], 15);
         const streetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         const satelliteMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
-        
-        let geofenceCircle = null;
-        let isFenceMode = false;
-        let lastPosition = null;
-        let totalDistance = 0;
-        let fuelChartInstance = null;
+
         let myUID = localStorage.getItem('fleetlink_uid') || 'unit-' + Math.random().toString(36).substr(2, 9);
         localStorage.setItem('fleetlink_uid', myUID);
-        document.getElementById('deviceUIDDisplay').innerText = `ID: ${myUID.toUpperCase()}`;
+        
+        let marker = null;
+        window.currentVehicleType = "Car";
 
-        // --- FUEL & REPORTING LOGIC ---
-        window.submitFuel = async () => {
-            const amount = document.getElementById('fuelAmount').value;
-            const liters = parseFloat(document.getElementById('fuelLiters').value);
-            const driver = document.getElementById('driverPicker').value;
-            const currentDist = parseFloat(document.getElementById('statDist').innerText);
-            
-            if(!amount || !liters) return alert("Please fill all fields");
-            
-            let efficiency = (currentDist > 0 && liters > 0) ? (currentDist / liters).toFixed(2) : 0;
-            
-            await push(ref(db, `fuelLogs/${myUID}`), { 
-                driver, 
-                amount: parseFloat(amount), 
-                liters, 
-                efficiency, 
-                date: new Date().toLocaleDateString(), 
-                timestamp: Date.now() 
-            });
-            
-            alert(`Log Saved! Efficiency: ${efficiency} km/L`);
-            closeFuelModal();
+        const carIcon = L.divIcon({ html: '🚗', className: 'map-icon', iconSize: [30, 30] });
+        const motoIcon = L.divIcon({ html: '🏍️', className: 'map-icon', iconSize: [30, 30] });
+
+        window.setVehicle = (type) => {
+            window.currentVehicleType = type;
+            document.getElementById('currentVehicle').innerText = type;
+            document.getElementById('vCar').classList.toggle('active', type === 'Car');
+            document.getElementById('vMoto').classList.toggle('active', type === 'Motorcycle');
+            if(marker) marker.setIcon(type === 'Car' ? carIcon : motoIcon);
         };
-
-        window.updateChart = async () => {
-            const snapshot = await get(ref(db, 'fuelLogs'));
-            const data = snapshot.val();
-            const labels = []; const amounts = [];
-            
-            if(data) {
-                const summary = {};
-                for(let uid in data) {
-                    for(let logId in data[uid]) {
-                        const log = data[uid][logId];
-                        summary[log.driver] = (summary[log.driver] || 0) + log.amount;
-                    }
-                }
-                for(let driver in summary) {
-                    labels.push(driver);
-                    amounts.push(summary[driver]);
-                }
-            }
-
-            const ctx = document.getElementById('fuelChart').getContext('2d');
-            if(fuelChartInstance) fuelChartInstance.destroy();
-            fuelChartInstance = new Chart(ctx, { 
-                type: 'bar', 
-                data: { 
-                    labels, 
-                    datasets: [{ label: 'Total Spending (PHP)', data: amounts, backgroundColor: '#007AFF' }] 
-                }, 
-                options: { responsive: true } 
-            });
-            document.getElementById('chartModal').style.display = 'flex';
-        };
-
-        window.exportFuelCSV = async () => {
-            const snapshot = await get(ref(db, 'fuelLogs'));
-            const data = snapshot.val();
-            if(!data) return alert("No data to export");
-            
-            let exportData = [];
-            for(let uid in data) {
-                for(let logId in data[uid]) {
-                    const log = data[uid][logId];
-                    exportData.push({ Driver: log.driver, Date: log.date, PHP: log.amount, Liters: log.liters, Km_L: log.efficiency });
-                }
-            }
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Fuel Logs");
-            XLSX.writeFile(wb, `iMerch_Fleet_Report.csv`);
-        };
-
-        window.adminClearLogs = async () => {
-            if(prompt("Enter Admin Password to DELETE ALL:") === "1234") {
-                await remove(ref(db, 'fuelLogs'));
-                window.updateChart();
-            }
-        };
-
-        window.checkAdminPass = () => { 
-            if(prompt("Admin Password:") === "1234") window.updateChart(); 
-            else alert("Unauthorized");
-        };
-
-        // --- GEOFENCING & TRACKING ---
-        window.toggleGeoFenceMode = () => {
-            isFenceMode = !isFenceMode;
-            document.getElementById('fenceBtn').classList.toggle('fence-active', isFenceMode);
-        };
-
-        map.on('click', (e) => {
-            if (!isFenceMode) return;
-            if (geofenceCircle) map.removeLayer(geofenceCircle);
-            geofenceCircle = L.circle(e.latlng, { radius: 500, color: '#FF3B30', fillOpacity: 0.1 }).addTo(map);
-            isFenceMode = false;
-            document.getElementById('fenceBtn').classList.remove('fence-active');
-        });
 
         window.updateDriverProfile = () => {
-            const picker = document.getElementById('driverPicker');
-            const name = picker.value;
+            const name = document.getElementById('driverPicker').value;
             document.getElementById('displayDriver').innerText = name;
-            const fileName = name === "Mico" ? "Mico.jpg" : name === "Darwin" ? "Darwin.jpg" : name === "Vergel" ? "Vergel.jpg" : name === "Eljhay" ? "Eljhay.jpg" : "Ron Sarmenta.jpg";
-            document.getElementById('profilePic').src = fileName;
+            // RESTORED JPG MAPPING
+            const imgMap = {
+                "Ron Sarmenta": "Ron Sarmenta.jpg",
+                "Mico": "mico.jpg",
+                "Darwin": "darwin.jpg",
+                "Vergel": "vergel.jpg",
+                "Eljhay": "eljhay.jpg"
+            };
+            document.getElementById('profilePic').src = imgMap[name] || "Ron Sarmenta.jpg";
         };
 
         window.toggleTracking = () => {
             const btn = document.getElementById('btn');
             if (!window.isTracking) {
                 window.isTracking = true;
-                btn.innerText = "🛑 Stop Tracking";
-                btn.style.background = "#FF3B30";
+                btn.innerText = "🛑 Stop Tracking"; btn.style.background = "#FF3B30";
                 window.watchID = navigator.geolocation.watchPosition(pos => {
                     const { latitude: lat, longitude: lng, speed: rawSpeed } = pos.coords;
+                    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    
+                    // UPDATE TIME STATUS
+                    document.getElementById('lastSeenStatus').innerText = time;
                     document.getElementById('liveSpeed').innerText = Math.round((rawSpeed || 0) * 3.6);
-                    update(ref(db, `cars/${myUID}`), { lat, lng, lastUpdated: new Date().toLocaleTimeString() });
+
+                    if(!marker) {
+                        marker = L.marker([lat, lng], { icon: window.currentVehicleType === 'Car' ? carIcon : motoIcon }).addTo(map);
+                    } else {
+                        marker.setLatLng([lat, lng]);
+                    }
+                    map.panTo([lat, lng]);
+
+                    update(ref(db, `cars/${myUID}`), { 
+                        lat, lng, 
+                        vehicle: window.currentVehicleType,
+                        lastSeen: time 
+                    });
                 }, null, { enableHighAccuracy: true });
             } else {
                 window.isTracking = false;
                 navigator.geolocation.clearWatch(window.watchID);
-                btn.innerText = "📡 Start Tracking";
-                btn.style.background = "#007AFF";
+                btn.innerText = "📡 Start Tracking"; btn.style.background = "#007AFF";
             }
         };
 
@@ -296,11 +198,6 @@
             if (map.hasLayer(streetMap)) { map.removeLayer(streetMap); satelliteMap.addTo(map); }
             else { map.removeLayer(satelliteMap); streetMap.addTo(map); }
         };
-        window.openFuelModal = () => document.getElementById('fuelModal').style.display='flex';
-        window.closeFuelModal = () => document.getElementById('fuelModal').style.display='none';
-        window.openRouteModal = () => document.getElementById('routeModal').style.display='flex';
-        window.closeRouteModal = () => document.getElementById('routeModal').style.display='none';
-        window.closeChartModal = () => document.getElementById('chartModal').style.display='none';
     </script>
 </body>
 </html>
